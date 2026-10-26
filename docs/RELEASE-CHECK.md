@@ -163,3 +163,29 @@ tabs measures patience, not reliability. The abort test asserts this directly �
 - The 30-minute soak (RSS slope, p95 latency, chunk gaps) from S7 — `NOT_TESTED`.
 - Admin WebSocket behaviour under the new shutdown path — covered by the earlier
   manual probes in [`ADMIN-API.md`](ADMIN-API.md), not by `npm test`.
+
+## 8. Live smoke after the change (Ollama 0.35.1)
+
+Fixture tests prove the gateway's own logic; this pass proves it still talks to a
+real engine. Command line (throwaway DB, port 8799):
+
+```bash
+cd server
+GATEWAY_PORT=8799 GATEWAY_DB=/tmp/opencode/live-smoke.db \
+GATEWAY_LOG=/tmp/opencode/live-smoke.jsonl GATEWAY_ADMIN_AUTH=1 \
+GATEWAY_ADMIN_TOKEN=smoke CP_OLLAMA_KIND=ollama \
+CP_OLLAMA_BASE_URL=http://127.0.0.1:11434 CP_OLLAMA_CAPS=tools \
+node src/index.ts
+```
+
+| Probe | Output |
+| --- | --- |
+| `GET /health` | `{"status":"ok",...,"providers":1,"models":2}` |
+| non-stream chat, `Say OK` | `HTTP/1.1 200`, `x-policy: applied;tokens=162`, `x-context-limit: 32768`, `content:"OK"` |
+| stream, `curl --max-time 1` | curl exit 28 after 1772 bytes; log `chat.client_aborted`, `durationMs:1009`, `chunks:8` |
+| `/admin/metrics?window_ms=600000` | `calls:2, errors:0, aborted:1` |
+| `kill -TERM <pid>` | process exit after **54 ms**; log `gateway.shutdown` then `gateway.closed` |
+
+Two things this pass checks specifically: the 499 path against a real engine
+(Ollama does not care that the client left; the gateway must), and that shutdown
+logs are written before exit rather than truncated by `process.exit`.
