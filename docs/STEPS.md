@@ -139,8 +139,8 @@ recipes are still missing, so the step is not closed.
 to it, plus the exit code.
 
 **Not proven here:** embeddings success path (no embedding model installed).
-llama.cpp is now proven over **both** HTTP and UDS — see the evidence table at
-the end of this file.
+llama.cpp is now proven over **both** HTTP and UDS — the commands and outputs are
+in [`LLAMACPP-LIVE.md`](LLAMACPP-LIVE.md) and summarised in the table below.
 
 ---
 

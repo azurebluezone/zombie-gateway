@@ -46,7 +46,9 @@ bug in this document.
 | TLS termination at the gateway | not implemented (see §10) |
 | Automatic tool-call loop (model → tool → model) | not implemented yet |
 
-Full step-by-step record: [`docs/STEPS.md`](docs/STEPS.md).
+Full step-by-step record: [`docs/STEPS.md`](docs/STEPS.md). The llama.cpp run,
+including the exact build, commands and outputs, is in
+[`docs/LLAMACPP-LIVE.md`](docs/LLAMACPP-LIVE.md).
 
 ## 3. Requirements
 
@@ -271,7 +273,7 @@ docs/                   transport, admin, context, sanitize, policy, steps
 ```bash
 cd server
 npm run typecheck                    # tsc --noEmit
-node --test test/                    # 37 cases: sanitizer 24, policy 13
+npm test                             # 37 cases: sanitizer 24, policy 13
 ```
 
 Measured on 2026-10-26: `tsc --noEmit` exit 0; 37/37 tests pass.
