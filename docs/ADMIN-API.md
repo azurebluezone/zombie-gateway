@@ -204,7 +204,9 @@ no standard residency control — pretending otherwise would be a lie.
 ## Metrics semantics
 
 - Window: `window_ms`, clamped to 1 minute … 7 days, default 1 hour.
-- `calls`, `errors` (`status >= 400`), `avg_ms`, `max_ms`, `avg_ttfb_ms`, token sums.
+- `calls`, `errors` (`status >= 400`, excluding 499), `aborted` (`status = 499`),
+  `avg_ms`, `max_ms`, `avg_ttfb_ms`, token sums. A client that closes its tab
+  mid-answer is an abort, not a gateway error, so it never lands in `errors`.
 - `p95_ms` is computed from the last 500 rows in the window, not the whole table.
 - `buckets` are per-minute rows of the window, newest first, capped at 60.
 - Everything comes from `request_logs`; there is no second counter to drift.

@@ -172,7 +172,7 @@ Response headers on every inference route:
 | Connect refused / DNS failure | 502 `provider_unreachable` |
 | Socket idle past `TIMEOUT_MS` | 504 `provider_timeout` |
 | Upstream body stopped early | 502 `provider_stream_error`; mid-stream the same envelope arrives as one final `data:` frame, and no `[DONE]` follows |
-| Client left mid-stream | no error body; log `chat.client_aborted` / `messages.client_aborted` and `request_logs.status = 499` |
+| Client left mid-stream | no error body; log `chat.client_aborted` / `messages.client_aborted` and `request_logs.status = 499`, counted as `aborted` in metrics, never as an error |
 
 ### Admin (JSON only, same port)
 

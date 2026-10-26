@@ -141,6 +141,11 @@ check `controller.signal.aborted` first and record
 `request_logs.status = 499`, and no error body is written to a socket that is
 already gone. A real upstream failure keeps `chat.failed`.
 
+The same 499 value is why `/admin/metrics` separates `aborted` from `errors`
+(`status >= 400 AND status <> 499`): an error rate that rises when users close
+tabs measures patience, not reliability. The abort test asserts this directly —
+`calls 1, aborted 1, errors 0`.
+
 ## 6. Defects the suite caught before release
 
 | Defect | Fix |

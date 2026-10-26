@@ -11,6 +11,12 @@ import { queryAll, queryOne } from "./db.ts";
 export interface WindowTotals {
   calls: number;
   errors: number;
+  /**
+   * Requests the client abandoned (status 499). Kept out of `errors`: a peer
+   * closing the tab is not a gateway failure, and folding it in would make the
+   * error rate grow with user patience.
+   */
+  aborted: number;
   avg_ms: number | null;
   p95_ms: number | null;
   max_ms: number | null;
@@ -22,6 +28,7 @@ export interface WindowTotals {
 interface AggregateRow {
   calls: number;
   errors: number | null;
+  aborted: number | null;
   avg_ms: number | null;
   max_ms: number | null;
   avg_ttfb_ms: number | null;
@@ -55,7 +62,8 @@ function totalsFor(since: string, providerId?: string, modelId?: string): Window
 
   const row = queryOne<AggregateRow>(
     `SELECT COUNT(*) AS calls,
-            SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) AS errors,
+            SUM(CASE WHEN status >= 400 AND status <> 499 THEN 1 ELSE 0 END) AS errors,
+            SUM(CASE WHEN status = 499 THEN 1 ELSE 0 END) AS aborted,
             AVG(duration_ms) AS avg_ms,
             MAX(duration_ms) AS max_ms,
             AVG(ttfb_ms) AS avg_ttfb_ms,
@@ -73,6 +81,7 @@ function totalsFor(since: string, providerId?: string, modelId?: string): Window
   return {
     calls: row?.calls ?? 0,
     errors: row?.errors ?? 0,
+    aborted: row?.aborted ?? 0,
     avg_ms: row?.avg_ms === null || row?.avg_ms === undefined ? null : Math.round(row.avg_ms),
     p95_ms: percentile(durations, 0.95),
     max_ms: row?.max_ms ?? null,
@@ -96,6 +105,7 @@ export interface MinuteBucket {
   minute: string;
   calls: number;
   errors: number;
+  aborted: number;
 }
 
 export interface MetricsSnapshot {
@@ -140,7 +150,8 @@ export function collectMetrics(windowMs: number): MetricsSnapshot {
   const buckets = queryAll<MinuteBucket>(
     `SELECT substr(ts, 1, 16) AS minute,
             COUNT(*) AS calls,
-            SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) AS errors
+            SUM(CASE WHEN status >= 400 AND status <> 499 THEN 1 ELSE 0 END) AS errors,
+            SUM(CASE WHEN status = 499 THEN 1 ELSE 0 END) AS aborted
      FROM request_logs WHERE ts >= ?
      GROUP BY minute ORDER BY minute DESC LIMIT 60`,
     since,

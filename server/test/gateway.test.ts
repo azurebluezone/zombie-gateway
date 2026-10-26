@@ -200,6 +200,17 @@ test("a client abort tears down the upstream stream", async (t) => {
     new Promise<string>((resolve) => setTimeout(() => resolve("timed out"), 4000)),
   ]);
   assert.equal(reason, "gateway closed the upstream stream");
+
+  // The peer leaving is recorded, but as an abort rather than an error: a
+  // dashboard that counted this as a failure would report one every time
+  // somebody closed a tab mid-answer.
+  const metrics = (await (
+    await fetch(`${gateway.base}/admin/metrics?window_ms=600000`)
+  ).json()) as { totals: { calls: number; errors: number; aborted: number } };
+
+  assert.equal(metrics.totals.calls, 1);
+  assert.equal(metrics.totals.aborted, 1);
+  assert.equal(metrics.totals.errors, 0);
 });
 
 test("an upstream that dies mid-stream ends with a provider_stream_error frame", async (t) => {
