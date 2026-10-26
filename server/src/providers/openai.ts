@@ -26,6 +26,9 @@ export const openAiCompatibleDriver: ProviderDriver = {
 
     if (result.status === 200) {
       const root = asRecord(result.json);
+      // Everything this endpoint lists is, by contract, a chat-completions
+      // model; saying otherwise would understate the catalogue it just returned.
+      const caps = uniq(["completion", ...context.declaredCaps]);
       for (const entry of asArray(root?.["data"])) {
         const record = asRecord(entry);
         const upstreamId = asString(record?.["id"]);
@@ -35,7 +38,7 @@ export const openAiCompatibleDriver: ProviderDriver = {
           modelId: publicModelId(upstreamId),
           upstreamId,
           displayName: asString(record?.["name"]) ?? upstreamId,
-          caps: [...context.declaredCaps],
+          caps,
           contextLength: asNumber(record?.["context_length"]),
           parameterSize: null,
           quantization: null,
@@ -54,7 +57,7 @@ export const openAiCompatibleDriver: ProviderDriver = {
         modelId: publicModelId(declaredId),
         upstreamId: declaredId,
         displayName: declaredId,
-        caps: uniq([...context.declaredCaps]),
+        caps: uniq(["completion", ...context.declaredCaps]),
         contextLength: null,
         parameterSize: null,
         quantization: null,

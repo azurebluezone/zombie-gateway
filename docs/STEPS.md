@@ -185,11 +185,18 @@ llama.cpp) and a 429 when the queue is saturated instead of an unbounded wait.
 
 ## S7 — Release gate
 
-- `tsc --noEmit` exit 0.
-- Every `/admin` route exercised by one scripted pass.
-- 30-minute soak: RSS slope, p95 latency, chunk gaps.
-- Failure injection: provider down, upstream 500, client abort mid-stream.
-- No `NOT_TESTED` item left in a user-facing claim.
+Measured 2026-10-27; commands and outputs in
+[`RELEASE-CHECK.md`](RELEASE-CHECK.md).
+
+| Gate | State |
+| --- | --- |
+| `tsc --noEmit` exit 0 | `[x]` |
+| Unit + integration suite (`npm test`) | `[x]` 49/49 |
+| Every `/admin` route exercised by one scripted pass | `[x]` manual, not automated (`docs/ADMIN-API.md`) |
+| Failure injection: dead provider, upstream 500, socket timeout, client abort, 413 | `[x]` `npm test` |
+| Prompt shutdown with an idle keep-alive socket | `[x]` < 1.5 s asserted; measured 333 ms |
+| 30-minute soak: RSS slope, p95 latency, chunk gaps | `[ ]` |
+| No `NOT_TESTED` item inside a user-facing claim | `[x]` every status row carries a label |
 
 ---
 
@@ -207,6 +214,7 @@ llama.cpp) and a 429 when the queue is saturated instead of an unbounded wait.
 | Context ledger: enforce on/off, reserve floor, overflow headers | `LIVE_PROBE_PASSED` |
 | Sanitizer: 24 unit cases + live prompt/response headers | `LIVE_PROBE_PASSED` |
 | Behaviour layer: 13 unit cases, applied/present/off, no persisted copy | `LIVE_PROBE_PASSED` |
+| Integration suite: 12 cases against a fixture upstream (500, timeout, dead provider, abort, 413, shutdown, admin) | `END_TO_END_TESTED` |
 | llama.cpp 0.7.0 over HTTP (`Qwen3-4B Q4_K_M`, native `tool_calls`) | `LIVE_PROBE_PASSED` |
 | llama.cpp 0.7.0 over **UDS** (`--host /tmp/.../llama.sock`) | `LIVE_PROBE_PASSED` |
 | llama.cpp binary build from a mounted drive (`LD_LIBRARY_PATH` needed) | `LIVE_PROBE_PASSED` |

@@ -42,6 +42,7 @@ bug in this document.
 | Behaviour layer: 13 unit cases, 166-token measured delta | live |
 | Admin API (20 routes), auth switch, CORS | live |
 | Metrics WebSocket: 401 / 101 / frames / orphan cleanup | live |
+| Failure injection: 500, timeout, dead provider, client abort, 413, prompt shutdown | `npm test` |
 | Embeddings **success** (vector returned) | `UNVERIFIED` — no embedding model installed |
 | TLS termination at the gateway | not implemented (see §10) |
 | Automatic tool-call loop (model → tool → model) | not implemented yet |
@@ -83,6 +84,8 @@ normalised `CP_<ID>_*` group; the model part is the engine's own id.
 Grammar: `CP_<ID>_<FIELD>`, where `FIELD` is one of
 `BASE_URL | KIND | TRANSPORT | SOCKET | API_KEY | MODELS | CAPS | TIMEOUT_MS | HEADERS`.
 `<ID>` is normalised to lowercase-with-dashes and becomes the public provider id.
+`TIMEOUT_MS` must be an integer ≥ 1000; an invalid value stops boot instead of
+silently falling back to five minutes.
 
 ```bash
 # Ollama (native /api + OpenAI /v1 on the same port)
@@ -264,8 +267,9 @@ server/
   policy.md             behaviour layer text
   identity.json         system identity (read-only at runtime)
   .env.example          every supported variable
-  test/                 node:test suites (policy, sanitize)
-docs/                   transport, admin, context, sanitize, policy, steps
+  test/                 node:test suites (sanitize, policy, integration)
+docs/                   transport, admin, context, sanitize, policy, steps,
+                        release check
 ```
 
 ## 12. Tests
@@ -273,10 +277,18 @@ docs/                   transport, admin, context, sanitize, policy, steps
 ```bash
 cd server
 npm run typecheck                    # tsc --noEmit
-npm test                             # 37 cases: sanitizer 24, policy 13
+npm test                             # 49 cases: sanitizer 24, policy 13,
+                                     # integration 12
 ```
 
-Measured on 2026-10-26: `tsc --noEmit` exit 0; 37/37 tests pass.
+Measured on 2026-10-27: `tsc --noEmit` exit 0; 49/49 tests pass.
+
+The integration suite spawns the real entry point against a fixture upstream and
+injects what a real engine will not produce on demand: upstream 500, socket
+timeout, dead provider, client abort mid-stream, oversized body, SIGTERM with an
+open socket, admin auth and one create/disable/purge cycle. Results, including
+the shutdown defect it found, are in
+[`docs/RELEASE-CHECK.md`](docs/RELEASE-CHECK.md).
 
 The live checks quoted in the status table are documented next to their numbers
 in [`docs/STEPS.md`](docs/STEPS.md), [`docs/CONTEXT.md`](docs/CONTEXT.md),

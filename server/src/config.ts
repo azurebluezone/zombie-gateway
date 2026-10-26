@@ -137,9 +137,13 @@ function readTransport(raw: string | undefined, baseUrl: string): TransportKind 
 }
 
 function readTimeout(raw: string | undefined): number {
-  if (!raw) return 300_000;
+  if (raw === undefined || raw.trim() === "") return 300_000;
   const value = Number.parseInt(raw, 10);
-  if (!Number.isFinite(value) || value < 1_000) return 300_000;
+  // A silent fallback here is the same trap as GATEWAY_SANITIZE=offf: the
+  // operator believes a 1 s timeout is in force while the socket waits 5 min.
+  if (!Number.isFinite(value) || value < 1_000) {
+    throw new Error(`CP_*_TIMEOUT_MS must be an integer >= 1000 (got "${raw}")`);
+  }
   return value;
 }
 

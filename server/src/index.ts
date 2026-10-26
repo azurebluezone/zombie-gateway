@@ -8,6 +8,7 @@
  * The database is the provider truth; the environment only seeds it.
  */
 
+import type { Socket } from "node:net";
 import { readGatewayConfig } from "./config.ts";
 import { createServer } from "./server.ts";
 import { closeDatabase, openDatabase } from "./core/db.ts";
@@ -78,6 +79,29 @@ async function main(): Promise<void> {
   });
 
   const server = createServer(context);
+  // Two sets, because "open" and "in flight" are different questions at
+  // shutdown. A socket that never sent a request has nothing to drain, but
+  // `closeIdleConnections()` does not always recognise it: a pooled client can
+  // open a connection and leave it silent, and that socket would otherwise hold
+  // the process until the force-close timer.
+  const openSockets = new Set<Socket>();
+  const busySockets = new Set<Socket>();
+  server.on("connection", (socket) => {
+    openSockets.add(socket);
+    socket.on("close", () => {
+      openSockets.delete(socket);
+      busySockets.delete(socket);
+    });
+  });
+  server.on("request", (req, res) => {
+    const socket = req.socket;
+    busySockets.add(socket);
+    const release = (): void => {
+      busySockets.delete(socket);
+    };
+    res.on("finish", release);
+    res.on("close", release);
+  });
   server.listen(config.port, config.host, () => {
     logEvent("info", "gateway.listening", {
       url: `http://${config.host}:${config.port}`,
@@ -101,15 +125,48 @@ async function main(): Promise<void> {
   const timer = setInterval(() => runSync("interval"), config.syncIntervalMs);
   timer.unref();
 
+  let closing = false;
+  const finish = (): void => {
+    if (closing) return;
+    closing = true;
+    closeTransports();
+    closeDatabase();
+    process.exit(0);
+  };
+
   const shutdown = (signal: string): void => {
     logEvent("info", "gateway.shutdown", { signal });
     clearInterval(timer);
     server.close(() => {
-      closeTransports();
-      closeDatabase();
-      process.exit(0);
+      logEvent("info", "gateway.closed", {});
+      finish();
     });
-    setTimeout(() => process.exit(0), 5_000).unref();
+    // Nothing is in flight on these, so there is nothing to drain: cut them
+    // before waiting rather than after the grace period.
+    for (const socket of openSockets) {
+      if (!busySockets.has(socket)) socket.destroy();
+    }
+    // Keep-alive sockets are idle, not in-flight. Without this, `server.close`
+    // waits for the 65 s keep-alive timeout on every stop.
+    server.closeIdleConnections();
+    // A streaming response gets a grace period to finish; after that the socket
+    // is cut instead of holding the process open indefinitely.
+    setTimeout(() => {
+      server.getConnections((error, count) => {
+        logEvent("warn", "gateway.force_close", {
+          connections: count,
+          peers: [...openSockets].map((socket) => ({
+            remote: `${socket.remoteAddress}:${socket.remotePort}`,
+            destroyed: socket.destroyed,
+            readable: socket.readable,
+            writable: socket.writable,
+          })),
+          error: error?.message ?? null,
+        });
+        server.closeAllConnections();
+        finish();
+      });
+    }, 3_000).unref();
   };
 
   process.on("SIGINT", () => shutdown("SIGINT"));
