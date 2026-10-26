@@ -1,0 +1,185 @@
+{
+ "ts": "2026-10-19T08:46:37+06:00",
+ "memory": {
+  "deepseek-r1:1.5b": {
+   "dialect": "named_json|-..-",
+   "grammar": {
+    "id": "named_json|-..-",
+    "kind": "named_json",
+    "envelope": {
+     "open": null,
+     "close": null
+    },
+    "tool_from_context": false,
+    "score_detail": {
+     "coverage": 0.2,
+     "tool_ok": 0.2,
+     "args_ok": 0.2,
+     "over_capture": 0.0,
+     "false_positives": 0,
+     "rejected_prose": 0,
+     "positives": 5,
+     "score": 0.2,
+     "n": 5
+    }
+   },
+   "grammar_set": [
+    {
+     "id": "named_json|-..-",
+     "kind": "named_json",
+     "envelope": {
+      "open": null,
+      "close": null
+     },
+     "tool_from_context": false,
+     "score_detail": {
+      "coverage": 0.2,
+      "tool_ok": 0.2,
+      "args_ok": 0.2,
+      "over_capture": 0.0,
+      "false_positives": 0,
+      "rejected_prose": 0,
+      "positives": 5,
+      "score": 0.2,
+      "n": 5
+     }
+    },
+    {
+     "id": "flat_json|-..-",
+     "kind": "flat_json",
+     "envelope": {
+      "open": null,
+      "close": null
+     },
+     "tool_from_context": true,
+     "score_detail": {
+      "coverage": 0.2,
+      "tool_ok": 0.2,
+      "args_ok": 0.2,
+      "over_capture": 0.0,
+      "false_positives": 0,
+      "rejected_prose": 0,
+      "positives": 5,
+      "score": 0.2,
+      "n": 5
+     }
+    }
+   ],
+   "verdict": "মিশ্র/অসম ভাষা — গ্রামার-সেট + ফলব্যাক দরকার; leave-one-out 0.0",
+   "induced_set_coverage": 0.4,
+   "accuracy_loo": 0.0
+  },
+  "qwen3.5:0.8b": {
+   "dialect": "native|api-tool_calls",
+   "grammar": {
+    "id": "native|api-tool_calls",
+    "kind": "native",
+    "envelope": null,
+    "tool_from_context": false,
+    "note": "the API itself returns structured tool_calls for this model",
+    "score_detail": {
+     "coverage": 0.8,
+     "tool_ok": 0.8,
+     "args_ok": 0.8,
+     "over_capture": 0.0,
+     "false_positives": 0,
+     "rejected_prose": 0,
+     "positives": 5,
+     "score": 0.8,
+     "n": 5
+    }
+   },
+   "grammar_set": [
+    {
+     "id": "native|api-tool_calls",
+     "kind": "native",
+     "envelope": null,
+     "tool_from_context": false,
+     "note": "the API itself returns structured tool_calls for this model",
+     "score_detail": {
+      "coverage": 0.8,
+      "tool_ok": 0.8,
+      "args_ok": 0.8,
+      "over_capture": 0.0,
+      "false_positives": 0,
+      "rejected_prose": 0,
+      "positives": 5,
+      "score": 0.8,
+      "n": 5
+     }
+    },
+    {
+     "id": "markers|-..-|END=END_CONTENT",
+     "kind": "markers",
+     "envelope": {
+      "open": null,
+      "close": null
+     },
+     "tool_from_context": false,
+     "terminators": [
+      "END_CONTENT"
+     ],
+     "terminator": "END_CONTENT",
+     "score_detail": {
+      "coverage": 0.2,
+      "tool_ok": 0.2,
+      "args_ok": 0.2,
+      "over_capture": 0.0,
+      "false_positives": 0,
+      "rejected_prose": 0,
+      "positives": 5,
+      "score": 0.2,
+      "n": 5
+     }
+    }
+   ],
+   "verdict": "এক ডায়ালেক্টেই নির্ভর করা যায় (leave-one-out-ও ভালো)",
+   "induced_set_coverage": 1.0,
+   "accuracy_loo": 0.8
+  },
+  "llama3.2:latest": {
+   "dialect": "native|api-tool_calls",
+   "grammar": {
+    "id": "native|api-tool_calls",
+    "kind": "native",
+    "envelope": null,
+    "tool_from_context": false,
+    "note": "the API itself returns structured tool_calls for this model",
+    "score_detail": {
+     "coverage": 1.0,
+     "tool_ok": 1.0,
+     "args_ok": 1.0,
+     "over_capture": 0.0,
+     "false_positives": 0,
+     "rejected_prose": 0,
+     "positives": 5,
+     "score": 1.0,
+     "n": 5
+    }
+   },
+   "grammar_set": [
+    {
+     "id": "native|api-tool_calls",
+     "kind": "native",
+     "envelope": null,
+     "tool_from_context": false,
+     "note": "the API itself returns structured tool_calls for this model",
+     "score_detail": {
+      "coverage": 1.0,
+      "tool_ok": 1.0,
+      "args_ok": 1.0,
+      "over_capture": 0.0,
+      "false_positives": 0,
+      "rejected_prose": 0,
+      "positives": 5,
+      "score": 1.0,
+      "n": 5
+     }
+    }
+   ],
+   "verdict": "সব নমুনাই API-স্তরের tool_calls — টেক্সট পার্সিং লাগেই না",
+   "induced_set_coverage": 1.0,
+   "accuracy_loo": 1.0
+  }
+ }
+}

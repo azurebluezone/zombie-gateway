@@ -1,0 +1,5 @@
+0c6a0f2d0d6eee570f08de2e3e531e3e74a47c2e725c212327b25a0b3cc534b6  6865  ./environment.md
+4399487396ebfbfc18d4e64064653355c4d421f494f2d1bb278aaec3e05b56bb  13913  ./HANDOVER.md
+b58020a14765fb50b8c4aae23c6e11f515618cbffcf7c1f88e3eb426c06f0119  4355  ./project/lab_data/dialect_memory.json
+c02f91288d04c708ae5902664c4e1d1a9987c80c8f025992c9bb512eadba5518  26583  ./project/model_tools.py
+625d3cb7a8cae6d38aa403eccdff7ce051b65a58f811b65034776baf1dd2c00c  9132  ./project/tool_calls.jsonl

@@ -1,0 +1,17 @@
+{
+  "system_identity": {
+    "name": "Compatible Providers",
+    "version": "0.1.0",
+    "tagline": "One OpenAI surface, every local engine.",
+    "protocol": "SSI-Core",
+    "branding": {
+      "owner": "Sahon Srabon",
+      "organization": "Developer Zone",
+      "location": "Dhaka, Bangladesh"
+    },
+    "contact": {
+      "website": "https://zombiecoder.my.id/"
+    },
+    "license": "Proprietary - Local Freedom Protocol"
+  }
+}

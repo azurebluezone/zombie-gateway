@@ -1,0 +1,31 @@
+# Runtime state: SQLite database, WAL/SHM sidecars, JSONL request logs.
+# These contain prompts, client addresses and token counts. Never commit them.
+server/data/
+*.db
+*.db-shm
+*.db-wal
+*.jsonl
+!docs/**/*.jsonl
+
+# Secrets and local overrides. .env.example is the documented surface.
+.env
+.env.*
+!.env.example
+
+# Dependencies (runtime has none; these are type-checking tools)
+node_modules/
+
+# Editor and OS state
+.idea/
+.vscode/
+.DS_Store
+*.swp
+
+# Build output and scratch files
+dist/
+*.log
+*.tmp
+
+# Local agent control state (SSOT, syllabus, session memory) — machine-local
+.zombiecoder/
+.codex/
