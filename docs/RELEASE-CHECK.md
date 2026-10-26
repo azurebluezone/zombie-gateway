@@ -17,16 +17,16 @@ Measured 2026-10-27 (Node 24.19.0, Ubuntu, 4 cores):
 | Check | Result |
 | --- | --- |
 | `tsc --noEmit` | exit 0 |
-| `npm test` | `tests 49 ` · `pass 49 ` · `fail 0` |
+| `npm test` | `tests 52 ` · `pass 52 ` · `fail 0` |
 
-Suite split: sanitizer 24, behaviour layer 13, integration 12.
+Suite split: sanitizer 24, behaviour layer 13, integration 15.
 The script is `node --test test/*.test.ts`: naming the files keeps the harness
 (`test/fixture.ts`) out of the run, where it would otherwise be reported as one
 more passing "test".
 
 ```
-ℹ tests 49
-ℹ pass 49
+ℹ tests 52
+ℹ pass 52
 ℹ fail 0
 ```
 
@@ -51,6 +51,9 @@ code path exists inside `src/`.
 | prompt shutdown | SIGTERM with an idle keep-alive socket returns in < 1500 ms | shutdown waiting on keep-alive |
 | admin auth | 401 anonymous, 200 with `x-admin-token` | admin surface open by accident |
 | admin mutation | create 201 → disable 200 → list shows disabled → purge 200 → gone | registry/DB divergence |
+| upstream dies mid-stream | 200, one error frame `code:"provider_stream_error"`, **no** `[DONE]` | a truncated answer presented as complete |
+| upstream body stops early (non-stream) | 502 `provider_stream_error`, message names the provider | half a JSON body surfaced as a parse error |
+| `/v1/messages` interrupted stream | `event: error` with the same message, no `message_stop` | Anthropic clients appending an error to the answer |
 
 Measured per-case wall clock (integration file, one run):
 
@@ -84,11 +87,14 @@ gateway code is test-aware:
 | `MODE:500` | returns HTTP 500 with `{"error":{"message":"fixture exploded"}}` |
 | `MODE:SLOW` | stalls 1500 ms before answering |
 | `MODE:ABORT` | streams one chunk, then reports when the gateway closes the socket |
-| `MODE:PREMATURE` | streams one chunk, then destroys the socket mid-frame |
+| `MODE:PREMATURE` | streams one chunk, then destroys the socket mid-frame; non-stream sends half a JSON body |
 
-`MODE:PREMATURE` is implemented but has no assertion yet: the stream is cut
-before a terminator and the client sees an incomplete SSE stream. That is a
-known gap, tracked here rather than described as covered.
+What the gateway does with it: the stream ends with one error frame carrying
+`code: "provider_stream_error"` and the provider's name, and no `[DONE]`. A
+terminator would tell the client the answer was complete; it was not. The
+non-stream path answers 502 with the same code, because "unexpected end of JSON"
+describes the parser, not the cause. `/v1/messages` sends the Anthropic-shaped
+`event: error` frame for the same reason.
 
 ## 4. Shutdown defect found by the suite
 
@@ -125,7 +131,17 @@ gateway.stop() took 32 ms
 ✔ a client abort tears down the upstream stream (349ms)
 ```
 
-## 5. Defects the suite caught before release
+## 5. Client abort is a 499, not a 500
+
+The same case exposed a reporting bug: the log called a peer disconnect
+`chat.failed` with `status 500`, `code internal_error`, `message "aborted"`.
+Nothing in the gateway failed — the client left. Both inference handlers now
+check `controller.signal.aborted` first and record
+`chat.client_aborted` / `messages.client_aborted` at `info` with
+`request_logs.status = 499`, and no error body is written to a socket that is
+already gone. A real upstream failure keeps `chat.failed`.
+
+## 6. Defects the suite caught before release
 
 | Defect | Fix |
 | --- | --- |
@@ -134,12 +150,11 @@ gateway.stop() took 32 ms
 | SIGTERM hung on idle keep-alive sockets | `closeIdleConnections()` + force-close (§4) |
 | client abort left a silent pooled socket | busy/open socket tracking (§4) |
 
-## 6. What this gate does not prove
+## 7. What this gate does not prove
 
 - Answer quality of any engine. Ollama and llama.cpp evidence lives in
   [`STEPS.md`](STEPS.md) and [`LLAMACPP-LIVE.md`](LLAMACPP-LIVE.md).
 - TLS termination — not implemented.
 - The 30-minute soak (RSS slope, p95 latency, chunk gaps) from S7 — `NOT_TESTED`.
-- `MODE:PREMATURE` mid-stream socket death — implemented, not asserted.
 - Admin WebSocket behaviour under the new shutdown path — covered by the earlier
   manual probes in [`ADMIN-API.md`](ADMIN-API.md), not by `npm test`.

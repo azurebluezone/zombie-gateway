@@ -191,7 +191,7 @@ Measured 2026-10-27; commands and outputs in
 | Gate | State |
 | --- | --- |
 | `tsc --noEmit` exit 0 | `[x]` |
-| Unit + integration suite (`npm test`) | `[x]` 49/49 |
+| Unit + integration suite (`npm test`) | `[x]` 52/52 |
 | Every `/admin` route exercised by one scripted pass | `[x]` manual, not automated (`docs/ADMIN-API.md`) |
 | Failure injection: dead provider, upstream 500, socket timeout, client abort, 413 | `[x]` `npm test` |
 | Prompt shutdown with an idle keep-alive socket | `[x]` < 1.5 s asserted; measured 333 ms |
@@ -214,7 +214,8 @@ Measured 2026-10-27; commands and outputs in
 | Context ledger: enforce on/off, reserve floor, overflow headers | `LIVE_PROBE_PASSED` |
 | Sanitizer: 24 unit cases + live prompt/response headers | `LIVE_PROBE_PASSED` |
 | Behaviour layer: 13 unit cases, applied/present/off, no persisted copy | `LIVE_PROBE_PASSED` |
-| Integration suite: 12 cases against a fixture upstream (500, timeout, dead provider, abort, 413, shutdown, admin) | `END_TO_END_TESTED` |
+| Integration suite: 15 cases against a fixture upstream (500, timeout, dead provider, abort, interrupted stream, 413, shutdown, admin) | `END_TO_END_TESTED` |
+| Upstream dying mid-stream → `provider_stream_error`, no `[DONE]`; client abort → log `*.client_aborted`, status 499 | `END_TO_END_TESTED` |
 | llama.cpp 0.7.0 over HTTP (`Qwen3-4B Q4_K_M`, native `tool_calls`) | `LIVE_PROBE_PASSED` |
 | llama.cpp 0.7.0 over **UDS** (`--host /tmp/.../llama.sock`) | `LIVE_PROBE_PASSED` |
 | llama.cpp binary build from a mounted drive (`LD_LIBRARY_PATH` needed) | `LIVE_PROBE_PASSED` |

@@ -12,6 +12,7 @@ export type ErrorCode =
   | "provider_error"
   | "provider_unreachable"
   | "provider_timeout"
+  | "provider_stream_error"
   | "rate_limit_exceeded"
   | "context_length_exceeded"
   | "sync_in_progress"
@@ -101,6 +102,26 @@ export function errorFromUpstream(
     providerId,
     upstreamStatus: status,
     retryable: mapping.retryable,
+  });
+}
+
+/**
+ * The upstream connection died after the response headers arrived.
+ *
+ * TCP reports that the body stopped; it never reports why. The message states
+ * only what is known — the response never completed — and keeps the transport's
+ * own words in parentheses instead of dressing them up as a cause.
+ */
+export function streamInterrupted(providerId: string, cause: unknown): GatewayError {
+  const detail =
+    cause instanceof Error && cause.message.length > 0 ? cause.message : String(cause);
+  return new GatewayError({
+    message: `Provider "${providerId}" closed the connection before the response was complete (${detail})`,
+    status: 502,
+    code: "provider_stream_error",
+    providerId,
+    retryable: true,
+    cause,
   });
 }
 

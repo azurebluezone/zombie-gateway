@@ -154,6 +154,16 @@ export async function startFixture(): Promise<Fixture> {
         .join("\n");
       const stream = body.stream === true;
 
+      // Non-stream premature death: half a JSON body, then the socket is gone.
+      // A parser can only report "unexpected end of input"; the gateway should
+      // report that the provider left, with a status the client can act on.
+      if (text.includes("MODE:PREMATURE") && !stream) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.write('{"id":"fixture-completion","choices":[');
+        setTimeout(() => res.socket?.destroy(), 50);
+        return;
+      }
+
       if (text.includes("MODE:500")) {
         res.writeHead(500, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: { message: "fixture exploded" } }));

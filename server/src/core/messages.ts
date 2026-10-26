@@ -16,7 +16,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AppContext } from "./chat.ts";
 import { fullModelId, hashPrompt, resolveModel, type ResolvedModel } from "./catalog.ts";
 import { contextHeaders, contextOverflowError, judgeUsage, planContext, type ContextPlan } from "./context.ts";
-import { GatewayError, errorFromUpstream, toEnvelope } from "./errors.ts";
+import { GatewayError, errorFromUpstream, streamInterrupted, toEnvelope } from "./errors.ts";
 import { logEvent } from "./logger.ts";
 import { recordRequest, resolveSession } from "./session.ts";
 import {
@@ -104,6 +104,9 @@ export async function handleMessages(
   let report = emptyReport(ctx.config.sanitize);
   let plan: ContextPlan | null = null;
   let policyRef: PolicyInjection | null = null;
+  // Set once the upstream stream ends on its own. Until then a transport error
+  // means the provider hung up mid-stream.
+  let upstreamDrained = false;
 
   const controller = new AbortController();
   res.on("close", () => {
@@ -396,6 +399,8 @@ export async function handleMessages(
       },
     });
 
+    upstreamDrained = true;
+
     const result = await writer.finish(finishReason);
     promptTokens = result.inputTokens;
     completionTokens = result.outputTokens;
@@ -456,7 +461,28 @@ export async function handleMessages(
     if (!res.writableEnded) res.end();
     finish();
   } catch (error) {
-    const envelope = toEnvelope(error);
+    // The peer leaving is not a gateway failure; it is the peer's decision and
+    // belongs in its own counter, not in the 5xx rate.
+    if (controller.signal.aborted) {
+      status = 499;
+      if (!res.writableEnded) res.end();
+      logEvent("info", "messages.client_aborted", {
+        requestId,
+        provider: resolved?.providerId ?? null,
+        model: resolved?.modelId ?? null,
+        durationMs: Date.now() - startedAt,
+        chunks: chunkCount,
+        sessionId,
+      });
+      finish();
+      return;
+    }
+
+    const mapped =
+      !upstreamDrained && upstreamStatus !== null && !(error instanceof GatewayError)
+        ? streamInterrupted(resolved?.providerId ?? "unknown", error)
+        : error;
+    const envelope = toEnvelope(mapped);
     if (!res.headersSent) {
       res.writeHead(envelope.status, {
         "content-type": "application/json; charset=utf-8",
@@ -476,7 +502,7 @@ export async function handleMessages(
       ).catch(() => undefined);
       if (!res.writableEnded) res.end();
     }
-    finish(error);
+    finish(mapped);
   }
 }
 

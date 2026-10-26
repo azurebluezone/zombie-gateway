@@ -164,6 +164,16 @@ Response headers on every inference route:
 | `x-sanitize`, `x-sanitize-output` | Carrier counts for prompt and non-stream output. |
 | `x-policy` | `applied;tokens=162`, `present`, `off` or `disabled`. |
 
+### Failure semantics
+
+| Symptom | Reply |
+| --- | --- |
+| Upstream answered ≥ 400 | that status, the upstream message, a mapped `code` |
+| Connect refused / DNS failure | 502 `provider_unreachable` |
+| Socket idle past `TIMEOUT_MS` | 504 `provider_timeout` |
+| Upstream body stopped early | 502 `provider_stream_error`; mid-stream the same envelope arrives as one final `data:` frame, and no `[DONE]` follows |
+| Client left mid-stream | no error body; log `chat.client_aborted` / `messages.client_aborted` and `request_logs.status = 499` |
+
 ### Admin (JSON only, same port)
 
 `GATEWAY_ADMIN_AUTH` is the single switch:
@@ -277,11 +287,11 @@ docs/                   transport, admin, context, sanitize, policy, steps,
 ```bash
 cd server
 npm run typecheck                    # tsc --noEmit
-npm test                             # 49 cases: sanitizer 24, policy 13,
-                                     # integration 12
+npm test                             # 52 cases: sanitizer 24, policy 13,
+                                     # integration 15
 ```
 
-Measured on 2026-10-27: `tsc --noEmit` exit 0; 49/49 tests pass.
+Measured on 2026-10-27: `tsc --noEmit` exit 0; 52/52 tests pass.
 
 The integration suite spawns the real entry point against a fixture upstream and
 injects what a real engine will not produce on demand: upstream 500, socket

@@ -26,7 +26,7 @@ import {
 } from "./session.ts";
 import { openUpstream, readBody } from "../transport/request.ts";
 import { assertTransportSupported } from "../transport/index.ts";
-import { GatewayError, errorFromUpstream, toEnvelope } from "./errors.ts";
+import { GatewayError, errorFromUpstream, streamInterrupted, toEnvelope } from "./errors.ts";
 import { logEvent } from "./logger.ts";
 import { driverFor } from "../providers/index.ts";
 import { beginSse, endSse, writeEvent } from "./stream.ts";
@@ -183,6 +183,10 @@ export async function handleChatCompletions(
   let report = emptyReport(ctx.config.sanitize);
   let planRef: ContextPlan | null = null;
   let policyRef: PolicyInjection | null = null;
+  // True until the upstream body ends without reaching its own terminator. The
+  // catch block uses it to tell "the provider hung up on us" from "the provider
+  // answered badly and we said so".
+  let upstreamDrained = false;
 
   const controller = new AbortController();
   res.on("close", () => {
@@ -575,6 +579,8 @@ export async function handleChatCompletions(
       }
     }
 
+    upstreamDrained = true;
+
     if (!sawUsage) {
       const promptTokensFinal = estimateTokens(promptText);
       const completionTokensFinal = estimateTokens(textOut);
@@ -682,7 +688,34 @@ export async function handleChatCompletions(
     });
     finish();
   } catch (error) {
-    const envelope = toEnvelope(error);
+    // A client that walked away is not a gateway failure: recording it as 500
+    // internal_error would put the peer's decision into our error budget.
+    if (controller.signal.aborted) {
+      status = 499;
+      if (!res.writableEnded) res.end();
+      logEvent("info", "chat.client_aborted", {
+        requestId,
+        provider: provider?.id ?? null,
+        model: resolved?.modelId ?? null,
+        durationMs: Date.now() - startedAt,
+        chunks: chunkCount,
+        sessionId,
+      });
+      finish();
+      return;
+    }
+
+    // Once the upstream headers have arrived and its body stops early, the
+    // transport error is the only explanation we have; report it as such
+    // instead of leaking a bare "aborted" under internal_error.
+    const mapped =
+      !upstreamDrained &&
+      upstreamStatus !== null &&
+      provider !== null &&
+      !(error instanceof GatewayError)
+        ? streamInterrupted(provider.id, error)
+        : error;
+    const envelope = toEnvelope(mapped);
 
     if (!res.headersSent) {
       res.writeHead(envelope.status, {
@@ -703,6 +736,6 @@ export async function handleChatCompletions(
       if (!res.writableEnded) res.end();
     }
 
-    finish(error);
+    finish(mapped);
   }
 }

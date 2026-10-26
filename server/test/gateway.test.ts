@@ -202,6 +202,78 @@ test("a client abort tears down the upstream stream", async (t) => {
   assert.equal(reason, "gateway closed the upstream stream");
 });
 
+test("an upstream that dies mid-stream ends with a provider_stream_error frame", async (t) => {
+  const fixture = await startFixture();
+  const gateway = await startGateway({ CP_FIX_KIND: "openai", CP_FIX_BASE_URL: fixture.base });
+  t.after(async () => {
+    await gateway.stop();
+    await fixture.close();
+  });
+
+  const response = await fetch(`${gateway.base}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(chatBody("MODE:PREMATURE", true)),
+  });
+  const text = await response.text();
+
+  // The status line left long ago; the error can only ride inside the stream.
+  // No [DONE] is sent, because a terminator would tell the client the answer
+  // was complete when the provider never finished it.
+  assert.equal(response.status, 200);
+  assert.match(text, /"code":"provider_stream_error"/);
+  assert.match(text, /closed the connection before the response was complete/);
+  assert.equal((text.match(/data: \[DONE\]/g) ?? []).length, 0);
+});
+
+test("a non-stream body that stops early is a 502 provider_stream_error, not truncated JSON", async (t) => {
+  const fixture = await startFixture();
+  const gateway = await startGateway({ CP_FIX_KIND: "openai", CP_FIX_BASE_URL: fixture.base });
+  t.after(async () => {
+    await gateway.stop();
+    await fixture.close();
+  });
+
+  const response = await fetch(`${gateway.base}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(chatBody("MODE:PREMATURE")),
+  });
+  const body = (await response.json()) as { error: { code: string; message: string } };
+
+  assert.equal(response.status, 502);
+  assert.equal(body.error.code, "provider_stream_error");
+  assert.match(body.error.message, /closed the connection before the response was complete/);
+});
+
+test("/v1/messages reports an interrupted upstream as an error event, not a completion", async (t) => {
+  const fixture = await startFixture();
+  const gateway = await startGateway({ CP_FIX_KIND: "openai", CP_FIX_BASE_URL: fixture.base });
+  t.after(async () => {
+    await gateway.stop();
+    await fixture.close();
+  });
+
+  const response = await fetch(`${gateway.base}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 32,
+      stream: true,
+      messages: [{ role: "user", content: "MODE:PREMATURE" }],
+    }),
+  });
+  const text = await response.text();
+
+  // Anthropic clients dispatch on the named event; a bare data frame would be
+  // parsed as the next content delta and quietly appended to the answer.
+  assert.equal(response.status, 200);
+  assert.match(text, /event: error/);
+  assert.match(text, /closed the connection before the response was complete/);
+  assert.doesNotMatch(text, /message_stop/);
+});
+
 test("a body over the limit is a 413, not a silent truncation", async (t) => {
   const fixture = await startFixture();
   const gateway = await startGateway({
