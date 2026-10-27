@@ -120,6 +120,44 @@ fitted slope is flat within noise over this window. The largest gap between
 chunks was 152 ms — no stall. This is a 10-minute run: the S7 gate asks for 30
 minutes, and that has not been run (`--soak-minutes=30` supports it).
 
+## Machine baseline — why long answers feel slow here
+
+Measured 2026-10-27 on this machine, so the number has a name instead of a mood:
+
+| Fact | Value |
+| --- | --- |
+| CPU | Intel i3-4130, 2 cores / 4 threads, DDR3 era |
+| GPU | none (`nvidia-smi` not installed) |
+| Ollama processor line | `100% CPU` for every loaded model |
+| Generation speed | **17.7 tok/s** (106 tokens in 6.39 s), 24.6 tok/s short burst |
+| Prompt evaluation | 31 tok/s cold, 307 tok/s when the prefix is cached |
+| First load from disk | 2.59 s for `qwen2.5:1.5b` |
+| Gateway overhead | 5–25 ms (catalogue 7 ms, count_tokens 5 ms, shutdown 16 ms) |
+| MCP `exec` overhead | ≈0–70 ms on top of the command's own runtime (3× suite: 25 452 ms local → 25 499 ms over MCP) |
+
+So a 300-token answer costs about 17 s of generation, before any transport. The
+behaviour layer adds 162 prompt tokens: 3.97 s on a cold prompt cache, 0.17 s
+when the same prefix is already cached (A/B through the gateway, same prompt):
+
+```
+GATEWAY_POLICY=off  call1 460 ms  call2 161 ms  call3 154 ms
+GATEWAY_POLICY=on   call1 3971 ms call2 166 ms  call3 161 ms
+```
+
+This is memory-bandwidth-bound inference, not queueing or JSON overhead: a 1 GB
+Q4 model re-reads roughly a gigabyte per token, so ~20 GB/s of effective DDR3
+bandwidth caps it near 20 tok/s. Moving the same bytes over a Unix socket,
+shared memory, or an in-process binding would save milliseconds; only a faster
+CPU with more bandwidth or a GPU moves the 17 s.
+
+The `OLLAMA_*` variables exported into this shell (`OLLAMA_NUM_PARALLEL`,
+`OLLAMA_MODELS`, `OLLAMA_TIMEOUT_MS`) are not read by `ollama.service`: its
+`Environment` is only `PATH`, so the server runs with defaults (`num_parallel`
+1 → concurrent requests queue). They come from `/home/sahon/continue/.env`,
+where `OLLAMA_NUM_PARALLEL=2` carries a trailing `# ...` comment that Ollama
+rejects as invalid — visible as `WARN invalid environment variable ... using
+default 1`.
+
 ## What this does not prove
 
 - Answer quality. It asserts "content is not empty", nothing about accuracy.

@@ -204,10 +204,20 @@ test("a client abort tears down the upstream stream", async (t) => {
 
   // The peer leaving is recorded, but as an abort rather than an error: a
   // dashboard that counted this as a failure would report one every time
-  // somebody closed a tab mid-answer.
-  const metrics = (await (
-    await fetch(`${gateway.base}/admin/metrics?window_ms=600000`)
-  ).json()) as { totals: { calls: number; errors: number; aborted: number } };
+  // somebody closed a tab mid-answer. The row is written by the gateway's abort
+  // handler, which can still be running when the upstream socket closes, so
+  // poll instead of racing it — this assertion failed once in 53 runs exactly
+  // that way.
+  type Totals = { totals: { calls: number; errors: number; aborted: number } };
+  const deadline = Date.now() + 2000;
+  let metrics: Totals = { totals: { calls: 0, errors: 0, aborted: 0 } };
+  for (;;) {
+    metrics = (await (
+      await fetch(`${gateway.base}/admin/metrics?window_ms=600000`)
+    ).json()) as Totals;
+    if (metrics.totals.aborted === 1 || Date.now() > deadline) break;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
 
   assert.equal(metrics.totals.calls, 1);
   assert.equal(metrics.totals.aborted, 1);
