@@ -17,16 +17,16 @@ Measured 2026-10-27 (Node 24.19.0, Ubuntu, 4 cores):
 | Check | Result |
 | --- | --- |
 | `tsc --noEmit` | exit 0 |
-| `npm test` | `tests 52 ` · `pass 52 ` · `fail 0` |
+| `npm test` | `tests 53 ` · `pass 53 ` · `fail 0` |
 
-Suite split: sanitizer 24, behaviour layer 13, integration 15.
+Suite split: sanitizer 24, behaviour layer 13, integration 16.
 The script is `node --test test/*.test.ts`: naming the files keeps the harness
 (`test/fixture.ts`) out of the run, where it would otherwise be reported as one
 more passing "test".
 
 ```
-ℹ tests 52
-ℹ pass 52
+ℹ tests 53
+ℹ pass 53
 ℹ fail 0
 ```
 
@@ -49,6 +49,7 @@ code path exists inside `src/`.
 | client abort | gateway tears down the upstream stream within 4 s | upstream work continuing after the client left |
 | body limit | 413 with `exceeds 512 bytes` | silent truncation |
 | prompt shutdown | SIGTERM with an idle keep-alive socket returns in < 1500 ms | shutdown waiting on keep-alive |
+| metrics panel shutdown | WebSocket gets close frame `1001` before the wire drops | panels treating a clean stop as a crash |
 | admin auth | 401 anonymous, 200 with `x-admin-token` | admin surface open by accident |
 | admin mutation | create 201 → disable 200 → list shows disabled → purge 200 → gone | registry/DB divergence |
 | upstream dies mid-stream | 200, one error frame `code:"provider_stream_error"`, **no** `[DONE]` | a truncated answer presented as complete |
@@ -58,18 +59,22 @@ code path exists inside `src/`.
 Measured per-case wall clock (integration file, one run):
 
 ```
-✔ health reports identity and counts (405ms)
-✔ catalogue qualifies the model id ... (441ms)
-✔ non-stream chat ... (454ms)
-✔ stream chat ... (345ms)
-✔ an upstream 500 ... (347ms)
-✔ socket inactivity is a 504 provider_timeout (1348ms)
-✔ an unreachable provider is a 502 provider_unreachable (350ms)
-✔ a client abort tears down the upstream stream (349ms)
-✔ a body over the limit is a 413 ... (333ms)
-✔ shutdown is prompt even with an idle keep-alive connection (333ms)
-✔ admin auth is one switch ... (339ms)
-✔ admin can create, toggle and purge ... (364ms)
+✔ health reports identity and counts (399ms)
+✔ catalogue qualifies the model id and keeps the engine's context length (358ms)
+✔ non-stream chat returns the completion and the ledger headers (359ms)
+✔ stream chat forwards SSE frames and one terminator (346ms)
+✔ an upstream 500 keeps the status, the code and the upstream message (344ms)
+✔ socket inactivity is a 504 provider_timeout (1341ms)
+✔ an unreachable provider is a 502 provider_unreachable (344ms)
+✔ a client abort tears down the upstream stream (372ms)
+✔ an upstream that dies mid-stream ends with a provider_stream_error frame (395ms)
+✔ a non-stream body that stops early is a 502 provider_stream_error, not truncated JSON (392ms)
+✔ /v1/messages reports an interrupted upstream as an error event, not a completion (398ms)
+✔ a body over the limit is a 413, not a silent truncation (335ms)
+✔ shutdown is prompt even with an idle keep-alive connection (334ms)
+✔ a metrics panel gets a 1001 close frame on shutdown (354ms)
+✔ admin auth is one switch: 401 without the token, 200 with it (358ms)
+✔ admin can create, toggle and purge a provider without a restart (360ms)
 ```
 
 Each case spawns a gateway (process start ≈ 330 ms), so that number is the
@@ -131,6 +136,16 @@ gateway.stop() took 32 ms
 ✔ a client abort tears down the upstream stream (349ms)
 ```
 
+The same shutdown path now closes admin WebSockets with a real close frame
+instead of dropping the socket: `closeAdminSockets()` in
+`server/src/admin/ws.ts` keeps a set of live session closers, sends `1001`
+(going away) and closes the `admin_sessions` row through the same `close()` the
+normal path uses. Idle sockets are handed to `destroySoon()` so the frame is
+flushed before the FIN, rather than `destroy()` cutting it. The case
+`a metrics panel gets a 1001 close frame on shutdown` asserts this end to end
+with a 60-line WebSocket client (`server/test/ws-client.ts`), because a client
+library would have been a dependency.
+
 ## 5. Client abort is a 499, not a 500
 
 The same case exposed a reporting bug: the log called a peer disconnect
@@ -160,9 +175,10 @@ tabs measures patience, not reliability. The abort test asserts this directly �
 - Answer quality of any engine. Ollama and llama.cpp evidence lives in
   [`STEPS.md`](STEPS.md) and [`LLAMACPP-LIVE.md`](LLAMACPP-LIVE.md).
 - TLS termination — not implemented.
-- The 30-minute soak (RSS slope, p95 latency, chunk gaps) from S7 — `NOT_TESTED`.
-- Admin WebSocket behaviour under the new shutdown path — covered by the earlier
-  manual probes in [`ADMIN-API.md`](ADMIN-API.md), not by `npm test`.
+- The 30-minute soak (RSS slope, p95 latency, chunk gaps) from S7. A 10-minute
+  run is recorded in [`LIVE-CHECK.md`](LIVE-CHECK.md): 1113 streams, 0 failed,
+  p95 1196 ms, max chunk gap 152 ms, slope −0.25 MB/min. Thirty minutes is still
+  `NOT_TESTED`; the script supports it with `--soak-minutes=30`.
 
 ## 8. Live smoke after the change (Ollama 0.35.1)
 

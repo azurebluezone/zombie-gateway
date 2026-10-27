@@ -191,11 +191,12 @@ Measured 2026-10-27; commands and outputs in
 | Gate | State |
 | --- | --- |
 | `tsc --noEmit` exit 0 | `[x]` |
-| Unit + integration suite (`npm test`) | `[x]` 52/52 |
+| Unit + integration suite (`npm test`) | `[x]` 53/53 |
+| Real-engine smoke script (`tools/live-check.ts`) | `[x]` 11/11 probes, Ollama 0.35.1 (`LIVE-CHECK.md`) |
 | Every `/admin` route exercised by one scripted pass | `[x]` manual, not automated (`docs/ADMIN-API.md`) |
 | Failure injection: dead provider, upstream 500, socket timeout, client abort, 413 | `[x]` `npm test` |
 | Prompt shutdown with an idle keep-alive socket | `[x]` < 1.5 s asserted; measured 333 ms |
-| 30-minute soak: RSS slope, p95 latency, chunk gaps | `[ ]` |
+| Soak: RSS slope, p95 latency, chunk gaps | `[~]` 10 min measured — 1113 streams, 0 failed, p95 1196 ms, max gap 152 ms, slope −0.25 MB/min (`LIVE-CHECK.md`); the 30-minute gate is not run |
 | No `NOT_TESTED` item inside a user-facing claim | `[x]` every status row carries a label |
 
 ---

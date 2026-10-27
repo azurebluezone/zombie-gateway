@@ -43,6 +43,7 @@ bug in this document.
 | Admin API (20 routes), auth switch, CORS | live |
 | Metrics WebSocket: 401 / 101 / frames / orphan cleanup | live |
 | Failure injection: 500, timeout, dead provider, client abort, 413, prompt shutdown | `npm test` |
+| Real-engine smoke script: boot, chat, stream, tool call, abort, admin, shutdown | live 11/11, [`docs/LIVE-CHECK.md`](docs/LIVE-CHECK.md) |
 | Embeddings **success** (vector returned) | `UNVERIFIED` — no embedding model installed |
 | TLS termination at the gateway | not implemented (see §10) |
 | Automatic tool-call loop (model → tool → model) | not implemented yet |
@@ -274,12 +275,14 @@ server/
     transport/          http/https/uds request path
     admin/              JSON API, schema, WebSocket
     tools/probe.ts      manual catalogue probe
+  tools/live-check.ts   real-engine check: boot, chat, stream, tool call,
+                        abort, admin auth, soak, shutdown
   policy.md             behaviour layer text
   identity.json         system identity (read-only at runtime)
   .env.example          every supported variable
   test/                 node:test suites (sanitize, policy, integration)
 docs/                   transport, admin, context, sanitize, policy, steps,
-                        release check
+                        release check, live check
 ```
 
 ## 12. Tests
@@ -287,11 +290,25 @@ docs/                   transport, admin, context, sanitize, policy, steps,
 ```bash
 cd server
 npm run typecheck                    # tsc --noEmit
-npm test                             # 52 cases: sanitizer 24, policy 13,
-                                     # integration 15
+npm test                             # 53 cases: sanitizer 24, policy 13,
+                                     # integration 16
 ```
 
-Measured on 2026-10-27: `tsc --noEmit` exit 0; 52/52 tests pass.
+Measured on 2026-10-27: `tsc --noEmit` exit 0; 53/53 tests pass.
+
+Live engines are checked by `server/tools/live-check.ts`, which spawns the real
+gateway against Ollama and prints one PASS/FAIL/SKIP line per probe — boot,
+catalogue, non-stream chat, streaming, `count_tokens`, tool call, client abort,
+admin auth, the embeddings gate, an optional soak and shutdown:
+
+```bash
+cd server
+node tools/live-check.ts --soak=3          # three timed requests
+node tools/live-check.ts --soak-minutes=10 # RSS slope, p95 latency, chunk gaps
+```
+
+It exits 1 when any probe fails, and a SKIP always carries its reason. The last
+recorded run is in [`docs/LIVE-CHECK.md`](docs/LIVE-CHECK.md).
 
 The integration suite spawns the real entry point against a fixture upstream and
 injects what a real engine will not produce on demand: upstream 500, socket
