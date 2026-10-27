@@ -10,6 +10,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { startFixture, startGateway } from "./fixture.ts";
+import { openMetricsSocket, type WsFrame } from "./ws-client.ts";
 
 const MODEL = "fix/fixture-1";
 
@@ -322,6 +323,28 @@ test("shutdown is prompt even with an idle keep-alive connection", async (t) => 
   await fixture.close();
 
   assert.ok(elapsed < 1500, `shutdown took ${elapsed}ms; idle sockets are not being closed`);
+});
+
+test("a metrics panel gets a 1001 close frame on shutdown", async (t) => {
+  const gateway = await startGateway({ GATEWAY_ADMIN_AUTH: "0" });
+  const client = await openMetricsSocket(gateway.port);
+  t.after(() => client.destroy());
+
+  const first = await client.readFrame();
+  assert.equal(first.opcode, 1);
+  assert.ok(first.payload.length > 0);
+
+  // SIGTERM, then read until the close frame: a metrics frame may already be
+  // in flight, and skipping it is not the same as tolerating a missing close.
+  const stopping = gateway.stop();
+  let close: WsFrame | null = null;
+  while (close === null) {
+    const frame = await client.readFrame(3000);
+    if (frame.opcode === 8) close = frame;
+  }
+  await stopping;
+
+  assert.equal(close.payload.readUInt16BE(0), 1001, "expected going-away, not an abnormal close");
 });
 
 test("admin auth is one switch: 401 without the token, 200 with it", async (t) => {

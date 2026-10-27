@@ -229,6 +229,11 @@ ping, pong, close.
 4. The row is closed (`closed_at`, final `frames`, negotiated `interval_ms` and
    `window_ms`) when the socket ends, including the hostile case of a client that
    destroys the TCP connection right after the `101`.
+5. On `SIGTERM` the server sends close code `1001` (going away) to every live
+   session before the listener closes, then closes the matching `admin_sessions`
+   rows. A dashboard sees a clean stop, not an abnormal disconnect. Asserted by
+   `a metrics panel gets a 1001 close frame on shutdown` in
+   `server/test/gateway.test.ts`.
 
 A plain `GET /admin/metrics/ws` (curl, browser address bar) answers `426 Upgrade
 Required` with a JSON hint, because the route only speaks WebSocket.

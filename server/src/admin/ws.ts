@@ -146,6 +146,20 @@ interface Counters {
   lastSentAt: string | null;
 }
 
+/**
+ * Sockets that can be closed with a proper frame. Shutdown uses this so a
+ * panel sees "going away" (1001) instead of an abnormal closure it has to
+ * guess about; the DB row for each session is closed by the same `close()`.
+ */
+const liveClosers = new Set<(code: number, reason: string) => void>();
+
+export function closeAdminSockets(reason = "server shutting down"): number {
+  const closers = [...liveClosers];
+  liveClosers.clear();
+  for (const close of closers) close(1001, reason);
+  return closers.length;
+}
+
 export function attachAdminSocket(server: Server, ctx: AppContext): void {
   // Sessions are rows, not memory: a restart cannot know which sockets are
   // still alive, so any row left open at boot belongs to a dead process.
@@ -262,6 +276,7 @@ export function attachAdminSocket(server: Server, ctx: AppContext): void {
       const close = (code: number, reason: string): void => {
         if (closed) return;
         closed = true;
+        liveClosers.delete(close);
         if (timer) clearInterval(timer);
 
         // The peer may already be gone (client destroyed the socket right after
@@ -300,6 +315,8 @@ export function attachAdminSocket(server: Server, ctx: AppContext): void {
           remote,
         });
       };
+
+      liveClosers.add(close);
 
       const handleText = (text: string): void => {
         let message: Record<string, unknown>;

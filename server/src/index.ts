@@ -16,6 +16,7 @@ import { initLogger, logEvent } from "./core/logger.ts";
 import { syncAll } from "./core/catalog.ts";
 import { ProviderRegistry } from "./core/registry.ts";
 import { closeTransports } from "./transport/request.ts";
+import { closeAdminSockets } from "./admin/ws.ts";
 import { loadIdentity } from "./identity.ts";
 import { loadPolicy } from "./core/policy.ts";
 import type { AppContext } from "./core/chat.ts";
@@ -141,10 +142,16 @@ async function main(): Promise<void> {
       logEvent("info", "gateway.closed", {});
       finish();
     });
+    // Panels get a close frame before the wire goes down; a session row is
+    // closed by the same call, so shutdown leaves no half-open rows behind.
+    const websockets = closeAdminSockets();
+    if (websockets > 0) {
+      logEvent("info", "gateway.websockets_closed", { count: websockets });
+    }
     // Nothing is in flight on these, so there is nothing to drain: cut them
     // before waiting rather than after the grace period.
     for (const socket of openSockets) {
-      if (!busySockets.has(socket)) socket.destroy();
+      if (!busySockets.has(socket)) socket.destroySoon();
     }
     // Keep-alive sockets are idle, not in-flight. Without this, `server.close`
     // waits for the 65 s keep-alive timeout on every stop.
