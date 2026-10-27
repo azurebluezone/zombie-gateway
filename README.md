@@ -54,31 +54,58 @@ including the exact build, commands and outputs, is in
 
 ## 3. Requirements
 
-- Node with `node:sqlite` available without a flag (tested on **24.19.0**).
+- Node **>= 22.13** (`node:sqlite` without a flag; `--env-file-if-exists` needs
+  22.9+). Tested on **24.19.0**.
 - An engine to talk to: Ollama, `llama-server`, or any OpenAI-compatible API.
 - No package installation is required to **run** it. `npm install` only pulls
-  `typescript` and `@types/node` for type checking.
+  `typescript` and `@types/node` for type checking and for `npm run build`.
 
 ## 4. Quick start
 
 ```bash
-cd server
-cp .env.example .env          # edit the CP_* block for your engines
-npm install --no-audit --no-fund
-npm run typecheck             # tsc --noEmit, expect exit 0
-npm start                     # node src/index.ts
+git clone git@github.com:azurebluezone/zombie-gateway.git
+cd zombie-gateway/server
+npm start
 ```
 
+That is the whole first run. There is no `npm install`, no `cp .env.example .env`
+and no `mkdir`: `npm start` runs `scripts/setup.mjs` first, which creates `.env`
+once, prepares `data/`, and prints the URL it is about to use. The server creates
+its SQLite database and log on boot. Full detail, including Windows:
+[`docs/INSTALL.md`](docs/INSTALL.md).
+
 ```bash
-curl -s http://127.0.0.1:8787/health
-curl -s http://127.0.0.1:8787/v1/models
-curl -s http://127.0.0.1:8787/v1/chat/completions \
+curl -s http://127.0.0.1:5252/health
+curl -s http://127.0.0.1:5252/v1/models
+curl -s http://127.0.0.1:5252/v1/chat/completions \
   -H 'content-type: application/json' \
   -d '{"model":"ollama/qwen2.5:1.5b","messages":[{"role":"user","content":"Say ready."}],"max_tokens":16}'
 ```
 
+The port is **environment-only**: there is no compiled-in default. `5252` is
+what `.env.example` ships, so `GATEWAY_PORT=5253 npm start` moves both the TCP
+listener and the URLs in the log without editing code. At least one listener must
+be configured — `GATEWAY_PORT` (TCP) and/or `GATEWAY_SOCKET` (Unix socket, or a
+named pipe on Windows).
+
 Models are addressed as `<provider>/<model>`. The provider prefix is the
 normalised `CP_<ID>_*` group; the model part is the engine's own id.
+
+### Optional: build to `dist/`
+
+Running the `.ts` files directly is supported and is what `npm start` does. If a
+deployment wants a plain-JS tree with no TypeScript extension in sight:
+
+```bash
+cd server
+npm install --no-audit --no-fund   # once, for the compiler only
+npm run build                      # clean dist/ and emit (tsc -p tsconfig.build.json)
+npm run start:dist                 # node --env-file-if-exists=.env dist/index.js
+```
+
+`dist/` mirrors `src/`, so `identity.json` and `policy.md` are still found one
+level up — the built tree needs no copied assets. `npm run build --keep` emits
+over an existing `dist/`.
 
 ## 5. Providers
 
@@ -115,6 +142,10 @@ CP_OPENROUTER_MODELS=anthropic/claude-sonnet-4,openai/gpt-4.1
 
 Rules that the code enforces:
 
+- A provider exists only when `BASE_URL` is set: `CP_X_KIND=ollama` alone is
+  ignored, because there is nothing to connect to. `CP_X_MODELS` **adds** ids the
+  engine does not list; it never hides listed ids.
+
 - `kind=openai` requires `BASE_URL` to include the version segment (`…/v1`), so
   driver paths (`/models`, `/chat/completions`) never produce `/v1/v1/…`.
 - Only the **name** of the key environment variable is persisted (`api_key_ref`);
@@ -133,6 +164,10 @@ binary), start it with `LD_LIBRARY_PATH=<build>/bin`; that build does not set an
 rpath. A system package install does not need this.
 
 ## 6. HTTP surface
+
+Same routes on both listeners (TCP via `GATEWAY_PORT`, Unix socket or named pipe
+via `GATEWAY_SOCKET`). Client recipes for curl, Node and Python — including the
+Unix-socket variants — are in [`docs/CLIENTS.md`](docs/CLIENTS.md).
 
 ### Inference (no admin token)
 
@@ -185,11 +220,11 @@ Response headers on every inference route:
 - unset — enforcement only when a token is configured.
 
 ```bash
-curl -s http://127.0.0.1:8787/admin/routes                 # self-description
-curl -s http://127.0.0.1:8787/admin/system                 # identity, policy, counts
-curl -s http://127.0.0.1:8787/admin/providers/schema       # field spec + examples
-curl -s -X POST http://127.0.0.1:8787/admin/sync           # discover every provider
-curl -s -X POST http://127.0.0.1:8787/admin/models/load \
+curl -s http://127.0.0.1:5252/admin/routes                 # self-description
+curl -s http://127.0.0.1:5252/admin/system                 # identity, policy, counts
+curl -s http://127.0.0.1:5252/admin/providers/schema       # field spec + examples
+curl -s -X POST http://127.0.0.1:5252/admin/sync           # discover every provider
+curl -s -X POST http://127.0.0.1:5252/admin/models/load \
   -H 'content-type: application/json' -d '{"model":"ollama/qwen2.5:1.5b"}'
 ```
 
@@ -265,8 +300,9 @@ Details and measurements: [`docs/POLICY.md`](docs/POLICY.md).
 server/
   src/
     index.ts            boot: config, DB, registry, identity, policy, listen
+                        (TCP and/or Unix socket, shared shutdown path)
     server.ts           routing, CORS, identity headers, body limit
-    config.ts           GATEWAY_* and CP_* grammar
+    config.ts           GATEWAY_* and CP_* grammar; env-only port, path root
     identity.ts         read-only identity.json + sha256
     core/               chat, messages, context, sanitize, policy, session,
                         catalog, registry, metrics, tokens, db, errors, logger
@@ -275,14 +311,19 @@ server/
     transport/          http/https/uds request path
     admin/              JSON API, schema, WebSocket
     tools/probe.ts      manual catalogue probe
+  scripts/
+    setup.mjs           first run: .env, data dirs, engine probe (prestart)
+    build.mjs           emit runtime to dist/ (tsc -p tsconfig.build.json)
+  tsconfig.build.json   emit config; tsconfig.json stays noEmit
+  dist/                 build output (gitignored), mirrors src/
   tools/live-check.ts   real-engine check: boot, chat, stream, tool call,
                         abort, admin auth, soak, shutdown
   policy.md             behaviour layer text
   identity.json         system identity (read-only at runtime)
   .env.example          every supported variable
   test/                 node:test suites (sanitize, policy, integration)
-docs/                   transport, admin, context, sanitize, policy, steps,
-                        release check, live check
+docs/                   install, clients/transport, admin, context, sanitize,
+                        policy, steps, release check, live check
 ```
 
 ## 12. Tests
@@ -290,11 +331,11 @@ docs/                   transport, admin, context, sanitize, policy, steps,
 ```bash
 cd server
 npm run typecheck                    # tsc --noEmit
-npm test                             # 53 cases: sanitizer 24, policy 13,
-                                     # integration 16
+npm test                             # 54 cases: sanitizer 24, policy 13,
+                                     # integration 17
 ```
 
-Measured on 2026-10-27: `tsc --noEmit` exit 0; 53/53 tests pass.
+Measured on 2026-10-27: `tsc --noEmit` exit 0; 54/54 tests pass.
 
 Live engines are checked by `server/tools/live-check.ts`, which spawns the real
 gateway against Ollama and prints one PASS/FAIL/SKIP line per probe — boot,

@@ -9,6 +9,10 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { request } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { startFixture, startGateway } from "./fixture.ts";
 import { openMetricsSocket, type WsFrame } from "./ws-client.ts";
 
@@ -355,6 +359,49 @@ test("a metrics panel gets a 1001 close frame on shutdown", async (t) => {
   await stopping;
 
   assert.equal(close.payload.readUInt16BE(0), 1001, "expected going-away, not an abnormal close");
+});
+
+test("the gateway answers over a Unix socket and removes it on shutdown", async (t) => {
+  const fixture = await startFixture();
+  const dir = mkdtempSync(join(tmpdir(), "cp-uds-"));
+  const socketPath = join(dir, "gateway.sock");
+  const gateway = await startGateway({
+    CP_FIX_KIND: "openai",
+    CP_FIX_BASE_URL: fixture.base,
+    GATEWAY_SOCKET: socketPath,
+  });
+  t.after(async () => {
+    await gateway.stop();
+    await fixture.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // TCP health already passed inside startGateway; the socket listener is a
+  // second server, so wait for the file rather than assuming the same tick.
+  const deadline = Date.now() + 3000;
+  while (!existsSync(socketPath)) {
+    if (Date.now() > deadline) throw new Error("socket file never appeared");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  const body = await new Promise<{ status: string; models: number }>((resolve, reject) => {
+    const call = request({ socketPath, path: "/health", method: "GET" }, (res) => {
+      let text = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk: string) => {
+        text += chunk;
+      });
+      res.on("end", () => resolve(JSON.parse(text) as { status: string; models: number }));
+    });
+    call.on("error", reject);
+    call.end();
+  });
+
+  assert.equal(body.status, "ok");
+  assert.ok(body.models > 0, "the catalogue should be visible over the socket too");
+
+  await gateway.stop();
+  assert.equal(existsSync(socketPath), false, "socket file should be removed after shutdown");
 });
 
 test("admin auth is one switch: 401 without the token, 200 with it", async (t) => {

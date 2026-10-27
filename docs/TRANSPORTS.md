@@ -1,5 +1,9 @@
 # Transport matrix — evidence
 
+> Practical client recipes (curl / Node / Python, TCP and UDS) are in
+> `docs/CLIENTS.md`. This file answers a different question: which transport can
+> actually carry inference, and what the gateway therefore implements.
+
 Scope: which transport actually carries a chat completion into a local or remote
 inference engine, and what the gateway therefore implements.
 

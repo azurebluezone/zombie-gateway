@@ -9,8 +9,17 @@
  * for the SQLite catalog and for the session log.
  */
 
+import { isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { SanitizeMode } from "./core/sanitize.ts";
 import type { PolicyMode } from "./core/policy.ts";
+
+/**
+ * Package root, not the process working directory. Relative paths in the
+ * environment resolve here, so `node dist/index.js` behaves the same when it is
+ * started from /, from server/, or from a systemd unit with no WorkingDirectory.
+ */
+const SERVER_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 export type ProviderKind = "ollama" | "llamacpp" | "openai" | "opencode";
 export type TransportKind = "http" | "https" | "uds" | "ws";
@@ -39,7 +48,16 @@ export interface ProviderConfig {
 
 export interface GatewayConfig {
   host: string;
-  port: number;
+  /** TCP port from GATEWAY_PORT; null when only a Unix socket is configured. */
+  port: number | null;
+  /**
+   * Path of an additional Unix domain socket (or Windows named pipe). Empty
+   * means TCP only. Node has no cross-platform "named pipe" path, so the value
+   * is used verbatim and validated at listen time.
+   */
+  socketPath: string;
+  /** Permission bits for the socket file (ignored on Windows). */
+  socketMode: number;
   dbPath: string;
   logPath: string;
   syncIntervalMs: number;
@@ -220,6 +238,72 @@ function readInt(raw: string | undefined, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
+/**
+ * Ports come from the environment and nowhere else. There is deliberately no
+ * default: a gateway that silently picks 5252 when GATEWAY_PORT is missing can
+ * collide with an unrelated service, and the operator never sees why.
+ *
+ * An empty value means "no TCP listener" (socket-only deployments). Anything
+ * else must be a whole number in 1..65535; `readInt`'s tolerant fallback would
+ * turn a typo like `GATEWAY_PORT=52x2` into a random port, so this reads
+ * strictly and throws.
+ */
+function readPort(raw: string | undefined): number | null {
+  if (raw === undefined || raw.trim() === "") return null;
+  const text = raw.trim();
+  if (!/^\d+$/.test(text)) {
+    throw new Error(`GATEWAY_PORT must be an integer 1..65535, got "${raw}"`);
+  }
+  const port = Number(text);
+  if (port < 1 || port > 65_535) {
+    throw new Error(`GATEWAY_PORT must be an integer 1..65535, got "${raw}"`);
+  }
+  return port;
+}
+
+/**
+ * The one directory default: everything the gateway writes lives under it
+ * unless GATEWAY_DB / GATEWAY_LOG say otherwise. Relative values in the
+ * environment resolve against the package root, never the process cwd, so
+ * `node dist/index.js` from / and `npm start` from server/ share one database.
+ */
+function dataDirFrom(env: NodeJS.ProcessEnv): string {
+  const raw = (env["GATEWAY_DATA_DIR"] || "").trim();
+  if (raw === "") return join(SERVER_ROOT, "data");
+  return isAbsolute(raw) ? raw : resolve(SERVER_ROOT, raw);
+}
+
+function resolveConfiguredPath(
+  env: NodeJS.ProcessEnv,
+  raw: string | undefined,
+  fallbackName: string,
+): string {
+  const value = (raw || "").trim();
+  if (value === "") return join(dataDirFrom(env), fallbackName);
+  return isAbsolute(value) ? value : resolve(SERVER_ROOT, value);
+}
+
+/** Same rule for optional files (identity, policy): empty stays empty. */
+function resolveOptionalPath(raw: string | undefined): string {
+  const value = (raw || "").trim();
+  if (value === "") return "";
+  return isAbsolute(value) ? value : resolve(SERVER_ROOT, value);
+}
+
+/**
+ * Socket permission bits, written as octal ("660" or "0o660"). A socket that is
+ * world-writable would let any local user spend the API budget; a mode that is
+ * not a file mode is a boot error rather than a silent 0660.
+ */
+function readSocketMode(raw: string | undefined): number {
+  if (!raw || raw.trim() === "") return 0o660;
+  const value = Number.parseInt(raw.trim().replace(/^0o/i, ""), 8);
+  if (!Number.isFinite(value) || value < 0o600 || value > 0o777) {
+    throw new Error(`GATEWAY_SOCKET_MODE must be octal 600..777, got "${raw}"`);
+  }
+  return value;
+}
+
 function readBoolean(raw: string | undefined): boolean | null {
   if (raw === undefined || raw.trim() === "") return null;
   const value = raw.trim().toLowerCase();
@@ -277,11 +361,22 @@ export function readGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
     throw new Error("GATEWAY_ADMIN_AUTH is enabled but GATEWAY_ADMIN_TOKEN is empty");
   }
 
+  const port = readPort(env["GATEWAY_PORT"]);
+  const socketPath = (env["GATEWAY_SOCKET"] || "").trim();
+  if (port === null && socketPath === "") {
+    throw new Error(
+      "No listener configured: set GATEWAY_PORT (TCP) and/or GATEWAY_SOCKET (Unix socket). " +
+        "`npm run setup` writes server/.env from .env.example.",
+    );
+  }
+
   return {
     host: env["GATEWAY_HOST"] || "127.0.0.1",
-    port: readInt(env["GATEWAY_PORT"], 8787),
-    dbPath: env["GATEWAY_DB"] || "./data/gateway.db",
-    logPath: env["GATEWAY_LOG"] || "./data/gateway.jsonl",
+    port,
+    socketPath,
+    socketMode: readSocketMode(env["GATEWAY_SOCKET_MODE"]),
+    dbPath: resolveConfiguredPath(env, env["GATEWAY_DB"], "gateway.db"),
+    logPath: resolveConfiguredPath(env, env["GATEWAY_LOG"], "gateway.jsonl"),
     syncIntervalMs: readInt(env["GATEWAY_SYNC_INTERVAL_MS"], 300_000),
     bodyLimitBytes: readInt(env["GATEWAY_BODY_LIMIT_BYTES"], 33_554_432),
     logPrompts: env["GATEWAY_LOG_PROMPTS"] === "1",
@@ -289,13 +384,13 @@ export function readGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
     adminToken,
     adminOrigins: readOrigins(env["GATEWAY_ADMIN_ORIGINS"]),
     identityHeaders: env["GATEWAY_IDENTITY_HEADERS"] !== "0",
-    identityFile: env["GATEWAY_IDENTITY_FILE"] || "",
+    identityFile: resolveOptionalPath(env["GATEWAY_IDENTITY_FILE"]),
     // Default strip: a carrier that reaches the engine has already done its job.
     sanitize: readSanitizeMode(env["GATEWAY_SANITIZE"]),
     contextEnforce: readBoolean(env["GATEWAY_CONTEXT_ENFORCE"]) ?? true,
     outputReserve: readOutputReserve(env["GATEWAY_OUTPUT_RESERVE"]),
     policy: readPolicyMode(env["GATEWAY_POLICY"]),
-    policyFile: env["GATEWAY_POLICY_FILE"] || "",
+    policyFile: resolveOptionalPath(env["GATEWAY_POLICY_FILE"]),
     providers: readProviderConfigs(env),
   };
 }

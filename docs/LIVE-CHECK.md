@@ -23,7 +23,7 @@ node tools/live-check.ts --soak=3
 node tools/live-check.ts --soak-minutes=10
 
 # point it at a gateway that is already running
-node tools/live-check.ts --base-url=http://127.0.0.1:8787 --token=secret
+node tools/live-check.ts --base-url=http://127.0.0.1:5252 --token=secret
 ```
 
 Provider selection comes from the environment: if no `CP_*_KIND` variable is set,

@@ -5,6 +5,11 @@ acceptance command prints the expected value; otherwise it is `NOT_TESTED`.
 
 Legend: `[x]` verified on this machine · `[~]` partial · `[ ]` not started.
 
+> Historical record: the commands below were captured when the local `.env` used
+> `GATEWAY_PORT=8787`. The port is environment-only now (`.env.example` ships
+> `5252`), so read `:8787` as "whatever `GATEWAY_PORT` was at the time". The
+> results themselves are unchanged; only the port literal is dated.
+
 ---
 
 ## S1 — Provider storage: DB is truth, env is a seed
