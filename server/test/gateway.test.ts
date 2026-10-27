@@ -9,11 +9,11 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startFixture, startGateway } from "./fixture.ts";
+import { SERVER_DIR, startFixture, startGateway } from "./fixture.ts";
 import { openMetricsSocket, type WsFrame } from "./ws-client.ts";
 
 const MODEL = "fix/fixture-1";
@@ -359,6 +359,49 @@ test("a metrics panel gets a 1001 close frame on shutdown", async (t) => {
   await stopping;
 
   assert.equal(close.payload.readUInt16BE(0), 1001, "expected going-away, not an abnormal close");
+});
+
+test("an https provider is reached, and only when its certificate is trusted", async (t) => {
+  const certPath = join(SERVER_DIR, "test/fixtures/localhost-cert.pem");
+  const fixture = await startFixture({
+    key: readFileSync(join(SERVER_DIR, "test/fixtures/localhost-key.pem")),
+    cert: readFileSync(certPath),
+  });
+
+  // Trusted root: the handshake and the catalogue probe must both succeed.
+  const trusting = await startGateway({
+    CP_TLS_KIND: "openai",
+    CP_TLS_BASE_URL: fixture.base,
+    NODE_EXTRA_CA_CERTS: certPath,
+  });
+  t.after(async () => {
+    await trusting.stop();
+    await fixture.close();
+  });
+
+  const trusted = (await (await fetch(`${trusting.base}/v1/models`)).json()) as {
+    data: Array<{ id: string }>;
+  };
+  assert.ok(
+    trusted.data.some((model) => model.id === "tls/fixture-1"),
+    `the https catalogue probe should have listed the model: ${JSON.stringify(trusted.data)}`,
+  );
+
+  // Same upstream, same gateway, no trusted root: a self-signed certificate is
+  // refused. If this passed, `rejectUnauthorized` would be off somewhere.
+  const untrusting = await startGateway({
+    CP_TLS_KIND: "openai",
+    CP_TLS_BASE_URL: fixture.base,
+  });
+  t.after(() => untrusting.stop());
+  const refused = (await (await fetch(`${untrusting.base}/v1/models`)).json()) as {
+    data: Array<{ id: string }>;
+  };
+  assert.equal(
+    refused.data.some((model) => model.id === "tls/fixture-1"),
+    false,
+    "a self-signed upstream must not be trusted by default",
+  );
 });
 
 test("the gateway answers over a Unix socket and removes it on shutdown", async (t) => {

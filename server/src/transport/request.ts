@@ -32,10 +32,24 @@ export interface UpstreamStream {
 }
 
 const agents = new Map<string, http.Agent>();
+const secureAgents = new Map<string, https.Agent>();
 const MAX_PROBE_BYTES = 4 * 1024 * 1024;
 
-function agentFor(config: ProviderConfig): http.Agent {
+/**
+ * Keep-alive pools are per protocol on purpose. An http.Agent handed to
+ * `https.request` fails with ERR_INVALID_PROTOCOL ("Protocol https: not
+ * supported. Expected http:") before a single byte leaves the process, so the
+ * agent's protocol and the request's protocol must be the same object type.
+ */
+function agentFor(config: ProviderConfig, secure: boolean): http.Agent {
   const key = `${config.id}:${config.transport}`;
+  if (secure) {
+    const existingSecure = secureAgents.get(key);
+    if (existingSecure) return existingSecure;
+    const agent = new https.Agent({ keepAlive: true, maxSockets: 64, keepAliveMsecs: 15_000 });
+    secureAgents.set(key, agent);
+    return agent;
+  }
   const existing = agents.get(key);
   if (existing) return existing;
   const agent = new http.Agent({ keepAlive: true, maxSockets: 64, keepAliveMsecs: 15_000 });
@@ -98,7 +112,7 @@ function optionsFor(
       method: request.method,
       headers,
       timeout,
-      agent: agentFor(config),
+      agent: agentFor(config, secure),
     },
   };
 }
@@ -221,4 +235,6 @@ export async function probeJson(
 export function closeTransports(): void {
   for (const agent of agents.values()) agent.destroy();
   agents.clear();
+  for (const agent of secureAgents.values()) agent.destroy();
+  secureAgents.clear();
 }

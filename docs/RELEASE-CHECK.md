@@ -19,8 +19,8 @@ Measured 2026-10-27 (Node 24.19.0, Ubuntu, 4 cores):
 | `tsc --noEmit` | exit 0 |
 | `npm test` | `tests 53 ` · `pass 53 ` · `fail 0` |
 
-Suite split: sanitizer 24, behaviour layer 13, integration 17 (the
-Unix-socket case was added last).
+Suite split: sanitizer 24, behaviour layer 13, integration 18 (the
+Unix-socket and HTTPS cases were added last).
 The script is `node --test test/*.test.ts`: naming the files keeps the harness
 (`test/fixture.ts`) out of the run, where it would otherwise be reported as one
 more passing "test".

@@ -45,6 +45,7 @@ bug in this document.
 | Failure injection: 500, timeout, dead provider, client abort, 413, prompt shutdown | `npm test` |
 | Real-engine smoke script: boot, chat, stream, tool call, abort, admin, shutdown | live 11/11, [`docs/LIVE-CHECK.md`](docs/LIVE-CHECK.md) |
 | Embeddings **success** (vector returned) | `UNVERIFIED` — no embedding model installed |
+| Upstream HTTPS: handshake, catalogue probe, self-signed refused | `npm test` (TLS fixture) |
 | TLS termination at the gateway | not implemented (see §10) |
 | Automatic tool-call loop (model → tool → model) | not implemented yet |
 
@@ -158,6 +159,10 @@ Rules that the code enforces:
 Transports supported for inference: `http`, `https` (certificate verification
 always on), `uds`. `ws`, `grpc` and shared memory are not inference transports;
 the reasoning and the evidence are in [`docs/TRANSPORTS.md`](docs/TRANSPORTS.md).
+
+`server/.env.example` keeps its extra provider groups **commented**: a fresh
+clone seeds only Ollama, so `/v1/providers` never shows placeholders that were
+never reachable. Uncomment a group to add a provider.
 
 If you run a **modular** llama.cpp build (a `libllama-server-impl.so` next to the
 binary), start it with `LD_LIBRARY_PATH=<build>/bin`; that build does not set an
@@ -322,6 +327,7 @@ server/
   identity.json         system identity (read-only at runtime)
   .env.example          every supported variable
   test/                 node:test suites (sanitize, policy, integration)
+  test/fixtures/        self-signed localhost cert for the HTTPS test only
 docs/                   install, clients/transport, admin, context, sanitize,
                         policy, steps, release check, live check
 ```
@@ -331,11 +337,11 @@ docs/                   install, clients/transport, admin, context, sanitize,
 ```bash
 cd server
 npm run typecheck                    # tsc --noEmit
-npm test                             # 54 cases: sanitizer 24, policy 13,
-                                     # integration 17
+npm test                             # 55 cases: sanitizer 24, policy 13,
+                                     # integration 18
 ```
 
-Measured on 2026-10-27: `tsc --noEmit` exit 0; 54/54 tests pass.
+Measured on 2026-10-27: `tsc --noEmit` exit 0; 55/55 tests pass.
 
 Live engines are checked by `server/tools/live-check.ts`, which spawns the real
 gateway against Ollama and prints one PASS/FAIL/SKIP line per probe — boot,

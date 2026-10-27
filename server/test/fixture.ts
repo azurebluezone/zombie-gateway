@@ -10,6 +10,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import http from "node:http";
+import https from "node:https";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -115,14 +116,19 @@ export interface Fixture {
  * Upstream behaviour is chosen by a marker inside the user message, so the
  * gateway needs no test-only code path:
  *   MODE:500 | MODE:SLOW | MODE:ABORT | MODE:PREMATURE
+ *
+ * Pass `tls` to serve the same handler over HTTPS: that is how the https
+ * transport is proven with a real handshake instead of a code inspection.
  */
-export async function startFixture(): Promise<Fixture> {
+export async function startFixture(
+  tls?: { key: Buffer; cert: Buffer },
+): Promise<Fixture> {
   let reportAbort: (reason: string) => void = () => undefined;
   const aborted = new Promise<string>((resolve) => {
     reportAbort = resolve;
   });
 
-  const server = http.createServer((req, res) => {
+  const handler = (req: http.IncomingMessage, res: http.ServerResponse) => {
     if (req.method === "GET" && req.url === "/v1/models") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(
@@ -204,14 +210,15 @@ export async function startFixture(): Promise<Fixture> {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(completion("fixture ok")));
     });
-  });
+  };
 
+  const server = tls ? https.createServer(tls, handler) : http.createServer(handler);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   const port = typeof address === "object" && address !== null ? address.port : 0;
 
   return {
-    base: `http://127.0.0.1:${port}/v1`,
+    base: `${tls ? "https" : "http"}://127.0.0.1:${port}/v1`,
     aborted,
     close: () =>
       new Promise<void>((resolve) => {
