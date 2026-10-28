@@ -60,6 +60,8 @@ export interface GatewayConfig {
   socketMode: number;
   dbPath: string;
   logPath: string;
+  /** Per-request audit trail (one JSON line per HTTP request, success or failure). */
+  accessLogPath: string;
   syncIntervalMs: number;
   bodyLimitBytes: number;
   logPrompts: boolean;
@@ -377,6 +379,7 @@ export function readGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
     socketMode: readSocketMode(env["GATEWAY_SOCKET_MODE"]),
     dbPath: resolveConfiguredPath(env, env["GATEWAY_DB"], "gateway.db"),
     logPath: resolveConfiguredPath(env, env["GATEWAY_LOG"], "gateway.jsonl"),
+    accessLogPath: resolveConfiguredPath(env, env["GATEWAY_ACCESS_LOG"], "access.jsonl"),
     syncIntervalMs: readInt(env["GATEWAY_SYNC_INTERVAL_MS"], 300_000),
     bodyLimitBytes: readInt(env["GATEWAY_BODY_LIMIT_BYTES"], 33_554_432),
     logPrompts: env["GATEWAY_LOG_PROMPTS"] === "1",

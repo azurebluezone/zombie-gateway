@@ -29,6 +29,14 @@ const MAX_INTERVAL = 60_000;
 const DEFAULT_INTERVAL = 2_000;
 const MIN_WINDOW = 60_000;
 const MAX_WINDOW = 7 * 24 * 60 * 60 * 1000;
+/**
+ * Idle sockets are what make an admin panel reconnect every minute: a proxy or
+ * a sleeping laptop drops a quiet WebSocket, and every reconnect writes a new
+ * admin_sessions row. A ping every 25s keeps the path warm; a socket that stays
+ * silent past three intervals is genuinely gone and is closed once, cleanly.
+ */
+const HEARTBEAT_MS = 25_000;
+const IDLE_LIMIT_MS = HEARTBEAT_MS * 3;
 
 interface Frame {
   fin: boolean;
@@ -224,6 +232,8 @@ export function attachAdminSocket(server: Server, ctx: AppContext): void {
       let seq = 0;
       let closed = false;
       let timer: NodeJS.Timeout | null = null;
+      let heartbeat: NodeJS.Timeout | null = null;
+      let lastSeen = Date.now();
       const counters: Counters = { frames: 0, lastSentAt: null };
 
       execute(
@@ -243,7 +253,7 @@ export function attachAdminSocket(server: Server, ctx: AppContext): void {
         socket.write(encodeFrame(Buffer.from(text, "utf8")));
         counters.frames += 1;
         counters.lastSentAt = nowIso();
-        if (counters.frames % 15 === 0) {
+        if (counters.frames % 5 === 0) {
           execute(
             "UPDATE admin_sessions SET frames = ?, last_sent_at = ?, interval_ms = ? WHERE id = ?",
             counters.frames,
@@ -278,6 +288,7 @@ export function attachAdminSocket(server: Server, ctx: AppContext): void {
         closed = true;
         liveClosers.delete(close);
         if (timer) clearInterval(timer);
+        if (heartbeat) clearInterval(heartbeat);
 
         // The peer may already be gone (client destroyed the socket right after
         // the 101, or a killed process). Writes are guarded so the bookkeeping
@@ -376,6 +387,7 @@ export function attachAdminSocket(server: Server, ctx: AppContext): void {
       let pending: Buffer[] = [];
 
       socket.on("data", (chunk: Buffer) => {
+        lastSeen = Date.now();
         buffer = Buffer.concat([buffer, chunk]);
         const decoded = decodeFrames(buffer);
         buffer = decoded.rest;
@@ -448,6 +460,23 @@ export function attachAdminSocket(server: Server, ctx: AppContext): void {
 
       schedule();
       pushMetrics();
+
+      // Keepalive: a ping frame is the cheapest proof the path still exists.
+      heartbeat = setInterval(() => {
+        if (closed) return;
+        if (Date.now() - lastSeen > IDLE_LIMIT_MS) {
+          close(1001, "heartbeat timeout");
+          return;
+        }
+        if (!socket.destroyed) {
+          try {
+            socket.write(encodeFrame(Buffer.alloc(0), 0x9));
+          } catch {
+            close(1011, "heartbeat write failed");
+          }
+        }
+      }, HEARTBEAT_MS);
+      heartbeat.unref();
     } catch (error) {
       reject(socket, 500, "internal_error", error instanceof Error ? error.message : "upgrade failed");
     }

@@ -72,7 +72,13 @@ const dbPath = env["GATEWAY_DB"]
 const logPath = env["GATEWAY_LOG"]
   ? resolve(serverDir, env["GATEWAY_LOG"])
   : join(dataDir, "gateway.jsonl");
-for (const path of [dbPath, logPath]) {
+// The access log has its own variable, so it can point at a different
+// directory. Create both parents; a missing directory is a boot failure, not a
+// silent fallback.
+const accessPath = env["GATEWAY_ACCESS_LOG"]
+  ? resolve(serverDir, env["GATEWAY_ACCESS_LOG"])
+  : join(dataDir, "access.jsonl");
+for (const path of [dbPath, logPath, accessPath]) {
   const dir = dirname(path);
   if (!existsSync(dir)) {
     if (checkOnly) fail(`missing directory ${dir}; run: npm run setup`);

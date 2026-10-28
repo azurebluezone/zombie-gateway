@@ -1,0 +1,2567 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>zombie-gateway · Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #171a1d;
+            --side: #101315;
+            --top: #101315;
+            --panel: #1b1f22;
+            --panel2: #15191c;
+            --line: #2a2f33;
+            --muted: #78838b;
+            --text: #dce2e5;
+            --white: #f4f7f8;
+            --green: #20c96b;
+            --green2: #123b25;
+            --green3: #17492c;
+            --red: #ef6464;
+            --amber: #e8b455;
+            --blue: #73a9ff
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font: 12px Inter, system-ui, sans-serif;
+            overflow: hidden
+        }
+
+        button,
+        input,
+        select,
+        textarea {
+            font: inherit
+        }
+
+        button {
+            cursor: pointer
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 1px solid var(--green);
+            outline-offset: 2px
+        }
+
+        .app {
+            height: 100%;
+            display: flex;
+            flex-direction: column
+        }
+
+        .topbar {
+            height: 46px;
+            flex: 0 0 46px;
+            background: var(--top);
+            border-bottom: 1px solid #22272a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 17px;
+            gap: 16px
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--white);
+            font-weight: 700;
+            font-size: 12px;
+            white-space: nowrap
+        }
+
+        .logo {
+            width: 20px;
+            height: 20px;
+            border-radius: 5px;
+            background: var(--green);
+            color: #072411;
+            display: grid;
+            place-items: center;
+            font-size: 12px;
+            font-weight: 800
+        }
+
+        .top-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .top-pill {
+            border: 1px solid #17472d;
+            background: #0c2115;
+            color: #65e69a;
+            padding: 5px 9px;
+            border-radius: 6px;
+            font-size: 10px;
+            white-space: nowrap
+        }
+
+        .top-icon {
+            width: 26px;
+            height: 26px;
+            border: 1px solid #2a3034;
+            background: #191d20;
+            border-radius: 6px;
+            color: #b5bec3;
+            display: grid;
+            place-items: center
+        }
+
+        .shell {
+            display: flex;
+            min-height: 0;
+            flex: 1
+        }
+
+        .sidebar {
+            width: 220px;
+            flex: 0 0 220px;
+            background: var(--side);
+            border-right: 1px solid #282d31;
+            display: flex;
+            flex-direction: column;
+            overflow: auto
+        }
+
+        .side-inner {
+            padding: 12px 9px 14px;
+            flex: 1
+        }
+
+        .nav-group {
+            margin-bottom: 17px
+        }
+
+        .group-label {
+            font-size: 9px;
+            letter-spacing: .12em;
+            color: #626d74;
+            text-transform: uppercase;
+            padding: 0 9px 7px;
+            font-weight: 700
+        }
+
+        .nav {
+            width: 100%;
+            height: 29px;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 0 9px;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            color: #a3adb3;
+            background: transparent;
+            text-align: left;
+            margin: 1px 0;
+            font-size: 11px
+        }
+
+        .nav svg {
+            width: 13px;
+            height: 13px;
+            stroke: currentColor;
+            flex: none
+        }
+
+        .nav:hover {
+            background: #1a2023;
+            color: #f4f7f8
+        }
+
+        .nav.active {
+            background: #102b1c;
+            border-color: #153c27;
+            color: #31d978;
+            font-weight: 600
+        }
+
+        .new {
+            margin-left: auto;
+            font-size: 8px;
+            color: #56e88b;
+            background: #12371f;
+            border-radius: 4px;
+            padding: 2px 5px
+        }
+
+        .side-foot {
+            border-top: 1px solid #262b2e;
+            padding: 11px 13px;
+            color: #5f6b72;
+            font-size: 9px;
+            line-height: 1.7
+        }
+
+        .main {
+            flex: 1;
+            min-width: 0;
+            overflow: auto;
+            padding: 16px 17px 24px
+        }
+
+        .view {
+            display: none;
+            max-width: 1600px;
+            margin: 0 auto
+        }
+
+        .view.active {
+            display: block
+        }
+
+        .page-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 14px;
+            margin: 0 0 15px
+        }
+
+        .page-title {
+            font-size: 17px;
+            line-height: 1.3;
+            font-weight: 700;
+            color: var(--white);
+            letter-spacing: -.025em;
+            margin: 0 0 4px
+        }
+
+        .sub {
+            color: #89949b;
+            font-size: 10px;
+            line-height: 1.55;
+            margin: 0
+        }
+
+        .btn {
+            border: 1px solid #30373b;
+            background: #202528;
+            color: #d6dfe3;
+            padding: 7px 10px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            white-space: nowrap
+        }
+
+        .btn:hover {
+            background: #2a3034;
+            border-color: #485158
+        }
+
+        .btn.green {
+            background: var(--green);
+            border-color: var(--green);
+            color: #062411
+        }
+
+        .btn.green:hover {
+            background: #39dc7f
+        }
+
+        .btn.softgreen {
+            background: #10291a;
+            border-color: #1d4d2d;
+            color: #5fe68f
+        }
+
+        .btn.danger {
+            background: #2a1718;
+            border-color: #613334;
+            color: #ff9696
+        }
+
+        .btn.small {
+            padding: 5px 7px;
+            font-size: 9px
+        }
+
+        .btn:disabled {
+            opacity: .4;
+            cursor: not-allowed
+        }
+
+        .grid {
+            display: grid;
+            gap: 10px
+        }
+
+        .stats {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-bottom: 12px
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            min-width: 0
+        }
+
+        .stat {
+            padding: 13px 14px;
+            min-height: 79px
+        }
+
+        .stat-label {
+            color: #89949b;
+            font-size: 10px;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px
+        }
+
+        .stat-value {
+            font-size: 21px;
+            font-weight: 700;
+            letter-spacing: -.04em;
+            color: #f3f6f7;
+            margin-top: 8px
+        }
+
+        .stat-note {
+            font-size: 9px;
+            color: #68747b;
+            margin-top: 4px
+        }
+
+        .dashboard-grid {
+            grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr)
+        }
+
+        .panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 12px 13px;
+            border-bottom: 1px solid var(--line)
+        }
+
+        .panel-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #e9eef0
+        }
+
+        .panel-desc {
+            font-size: 9px;
+            color: #7c878e;
+            margin-top: 4px
+        }
+
+        .panel-body {
+            padding: 12px 13px
+        }
+
+        .kv {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            padding: 8px 0;
+            border-bottom: 1px solid #272c30
+        }
+
+        .kv:last-child {
+            border: 0
+        }
+
+        .kv .k {
+            color: #7f8a91;
+            font-size: 10px
+        }
+
+        .kv .v {
+            color: #dce2e5;
+            font-size: 10px;
+            text-align: right;
+            overflow-wrap: anywhere
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            border: 1px solid #343b3f;
+            background: #202528;
+            color: #aeb9bf;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 9px;
+            white-space: nowrap
+        }
+
+        .tag.green {
+            color: #62e895;
+            border-color: #215634;
+            background: #10281a
+        }
+
+        .tag.red {
+            color: #ff9b9b;
+            border-color: #5b3434;
+            background: #2b191a
+        }
+
+        .tag.amber {
+            color: #efc674;
+            border-color: #5d4b2a;
+            background: #292213
+        }
+
+        .dot {
+            width: 5px;
+            height: 5px;
+            background: currentColor;
+            border-radius: 50%;
+            display: inline-block
+        }
+
+        .quick-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px
+        }
+
+        .quick {
+            border: 1px solid #30373b;
+            background: #1d2225;
+            border-radius: 6px;
+            padding: 11px;
+            text-align: left;
+            color: #e3e9ec;
+            min-height: 67px
+        }
+
+        .quick:hover {
+            border-color: #3b7450;
+            background: #202923
+        }
+
+        .quick-icon {
+            width: 22px;
+            height: 22px;
+            display: grid;
+            place-items: center;
+            border-radius: 6px;
+            background: #173a25;
+            color: #42df7d;
+            margin-bottom: 7px
+        }
+
+        .quick strong {
+            display: block;
+            font-size: 10px
+        }
+
+        .quick span {
+            display: block;
+            color: #818d94;
+            font-size: 9px;
+            margin-top: 4px;
+            line-height: 1.4
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 10px
+        }
+
+        .search {
+            min-width: 180px;
+            max-width: 300px;
+            flex: 1;
+            position: relative
+        }
+
+        .search input {
+            width: 100%;
+            height: 29px;
+            border: 1px solid #30373b;
+            background: #15191c;
+            border-radius: 6px;
+            padding: 0 10px 0 29px;
+            color: #e4e9eb;
+            outline: none;
+            font-size: 10px
+        }
+
+        .search:before {
+            content: '⌕';
+            position: absolute;
+            left: 10px;
+            top: 5px;
+            color: #849097;
+            font-size: 16px
+        }
+
+        .select,
+        .field {
+            height: 29px;
+            border: 1px solid #30373b;
+            background: #15191c;
+            color: #dce2e5;
+            border-radius: 6px;
+            padding: 0 9px;
+            font-size: 10px;
+            min-width: 0
+        }
+
+        .field {
+            width: 100%;
+            height: auto;
+            padding: 9px 10px
+        }
+
+        .table-wrap {
+            overflow: auto;
+            border: 1px solid #2b3034;
+            border-radius: 7px;
+            background: #1a1e21
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 680px
+        }
+
+        th {
+            height: 31px;
+            background: #202528;
+            color: #7f8c93;
+            font-size: 8px;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            font-weight: 600;
+            text-align: left;
+            padding: 0 11px;
+            border-bottom: 1px solid #30363a;
+            white-space: nowrap
+        }
+
+        td {
+            padding: 10px 11px;
+            border-bottom: 1px solid #2a2f33;
+            color: #cbd4d9;
+            font-size: 10px;
+            vertical-align: middle
+        }
+
+        tbody tr:last-child td {
+            border-bottom: 0
+        }
+
+        tbody tr:hover {
+            background: #ffffff04
+        }
+
+        .item-name {
+            color: #edf1f3;
+            font-weight: 600;
+            font-size: 10px
+        }
+
+        .item-sub {
+            color: #78858c;
+            font-size: 9px;
+            margin-top: 4px
+        }
+
+        .row-actions {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            justify-content: flex-end
+        }
+
+        .empty {
+            text-align: center;
+            padding: 42px 15px;
+            color: #77838a
+        }
+
+        .empty-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            border: 1px solid #30383d;
+            color: #647178;
+            display: grid;
+            place-items: center;
+            margin: 0 auto 10px;
+            font-size: 14px
+        }
+
+        .empty strong {
+            display: block;
+            color: #cbd4d8;
+            font-size: 11px;
+            margin-bottom: 5px
+        }
+
+        .empty p {
+            margin: 0 0 12px;
+            font-size: 9px
+        }
+
+        .notice {
+            padding: 10px 12px;
+            border: 1px solid #53452b;
+            background: #262115;
+            border-radius: 7px;
+            color: #d6c18f;
+            font-size: 10px;
+            line-height: 1.5;
+            margin-bottom: 12px
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px
+        }
+
+        .form-row label {
+            display: block;
+            color: #8b979d;
+            font-size: 9px;
+            margin-bottom: 6px;
+            font-weight: 600
+        }
+
+        .form-row.full {
+            grid-column: 1/-1
+        }
+
+        .form-row textarea {
+            resize: vertical;
+            min-height: 80px
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: #000a;
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 18px
+        }
+
+        .modal-backdrop.open {
+            display: flex
+        }
+
+        .modal {
+            width: min(590px, 100%);
+            max-height: 90vh;
+            overflow: auto;
+            background: #1b2023;
+            border: 1px solid #3a4247;
+            border-radius: 10px;
+            box-shadow: 0 24px 80px #0009
+        }
+
+        .modal-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            border-bottom: 1px solid #30363a
+        }
+
+        .modal-title {
+            font-weight: 700;
+            font-size: 13px
+        }
+
+        .modal-body {
+            padding: 16px
+        }
+
+        .modal-foot {
+            display: flex;
+            justify-content: flex-end;
+            gap: 7px;
+            padding: 12px 16px;
+            border-top: 1px solid #30363a
+        }
+
+        .toast {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 120;
+            background: #10281a;
+            border: 1px solid #24613a;
+            color: #80f0a7;
+            padding: 10px 14px;
+            border-radius: 7px;
+            box-shadow: 0 10px 30px #0007;
+            display: none;
+            font-size: 11px
+        }
+
+        .toast.show {
+            display: block
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px
+        }
+
+        .detail-cell {
+            background: #15191c;
+            border: 1px solid #2a3034;
+            border-radius: 6px;
+            padding: 10px
+        }
+
+        .detail-cell .k {
+            font-size: 9px;
+            color: #7f8b91
+        }
+
+        .detail-cell .v {
+            font-size: 11px;
+            color: #e5ebed;
+            font-weight: 600;
+            margin-top: 7px;
+            overflow-wrap: anywhere
+        }
+
+        .mobile-menu {
+            display: none
+        }
+
+        @media(max-width:1000px) {
+            .sidebar {
+                width: 195px;
+                flex-basis: 195px
+            }
+
+            .stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr))
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr
+            }
+
+            .top-actions .top-pill {
+                display: none
+            }
+        }
+
+        @media(max-width:700px) {
+            body {
+                overflow: hidden
+            }
+
+            .topbar {
+                padding: 0 10px
+            }
+
+            .mobile-menu {
+                display: grid
+            }
+
+            .brand-label {
+                font-size: 11px
+            }
+
+            .sidebar {
+                position: fixed;
+                z-index: 50;
+                top: 46px;
+                bottom: 0;
+                left: 0;
+                width: 230px;
+                transform: translateX(-100%);
+                transition: transform .18s;
+                box-shadow: 15px 0 45px #0007
+            }
+
+            .sidebar.open {
+                transform: translateX(0)
+            }
+
+            .main {
+                padding: 13px 10px 22px
+            }
+
+            .page-head {
+                flex-direction: column
+            }
+
+            .stats {
+                gap: 7px
+            }
+
+            .stat {
+                padding: 11px;
+                min-height: 72px
+            }
+
+            .stat-value {
+                font-size: 18px
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr
+            }
+
+            .form-row.full {
+                grid-column: auto
+            }
+
+            .detail-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr))
+            }
+
+            .hide-small {
+                display: none
+            }
+        }
+
+        /* Layout polish: stable card heights, consistent action rows and model cards */
+        .stats {
+            align-items: stretch
+        }
+
+        .stats>.stat {
+            display: flex;
+            flex-direction: column;
+            min-height: 104px
+        }
+
+        .stat-note {
+            margin-top: auto;
+            padding-top: 5px
+        }
+
+        .dashboard-grid {
+            align-items: stretch
+        }
+
+        .dashboard-grid>.panel {
+            height: 100%;
+            min-width: 0
+        }
+
+        .page-head>div:last-child {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 7px;
+            flex-wrap: wrap
+        }
+
+        .row-actions {
+            flex-wrap: wrap
+        }
+
+        .row-actions .btn {
+            min-width: 52px
+        }
+
+        .model-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            padding: 11px
+        }
+
+        .model-card {
+            min-width: 0;
+            background: #171b1e;
+            border: 1px solid #30373b;
+            border-radius: 8px;
+            padding: 13px;
+            display: flex;
+            flex-direction: column;
+            gap: 11px
+        }
+
+        .model-card:hover {
+            border-color: #3a6249
+        }
+
+        .model-card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px
+        }
+
+        .model-card-name {
+            font-size: 11px;
+            font-weight: 700;
+            color: #edf2f4;
+            overflow-wrap: anywhere;
+            line-height: 1.45
+        }
+
+        .model-card-meta {
+            font-size: 9px;
+            color: #7f8c93;
+            margin-top: 4px;
+            overflow-wrap: anywhere
+        }
+
+        .model-card-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            min-height: 21px
+        }
+
+        .model-card-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px
+        }
+
+        .model-card-stat {
+            padding: 8px;
+            background: #202528;
+            border-radius: 5px;
+            min-width: 0
+        }
+
+        .model-card-stat span {
+            display: block;
+            color: #7f8c93;
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: .06em
+        }
+
+        .model-card-stat strong {
+            display: block;
+            margin-top: 5px;
+            color: #dce3e6;
+            font-size: 10px;
+            overflow-wrap: anywhere
+        }
+
+        .model-card-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: auto
+        }
+
+        .model-card-actions .btn {
+            flex: 1
+        }
+
+        .chat-layout {
+            display: grid;
+            grid-template-columns: minmax(220px, .75fr) minmax(0, 1.7fr);
+            gap: 12px;
+            align-items: stretch
+        }
+
+        .chat-side {
+            padding: 13px
+        }
+
+        .chat-transcript {
+            height: 390px;
+            overflow: auto;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px
+        }
+
+        .chat-msg {
+            max-width: 88%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            line-height: 1.55;
+            font-size: 11px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere
+        }
+
+        .chat-msg.user {
+            align-self: flex-end;
+            background: #143a25;
+            border: 1px solid #245b39;
+            color: #e1f7e9
+        }
+
+        .chat-msg.assistant {
+            align-self: flex-start;
+            background: #202528;
+            border: 1px solid #30373b;
+            color: #dce2e5
+        }
+
+        .chat-compose {
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            border-top: 1px solid var(--line);
+            align-items: flex-end
+        }
+
+        .chat-compose textarea {
+            min-height: 42px;
+            max-height: 130px;
+            resize: vertical;
+            flex: 1
+        }
+
+        .chat-empty {
+            margin: auto;
+            text-align: center;
+            color: #77838a;
+            max-width: 300px;
+            line-height: 1.6
+        }
+
+        .chat-empty strong {
+            display: block;
+            color: #dce2e5;
+            margin-bottom: 5px
+        }
+
+        .admin-table-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: flex-end;
+            flex-wrap: wrap
+        }
+
+        .pill-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap
+        }
+
+        @media(max-width:1100px) {
+            .model-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr))
+            }
+
+            .chat-layout {
+                grid-template-columns: 1fr
+            }
+
+            .chat-transcript {
+                height: 340px
+            }
+        }
+
+        @media(max-width:700px) {
+            .model-grid {
+                grid-template-columns: 1fr
+            }
+
+            .stats>.stat {
+                min-height: 85px
+            }
+
+            .page-head>div:last-child {
+                justify-content: flex-start
+            }
+
+            .chat-transcript {
+                height: 45vh;
+                min-height: 240px
+            }
+
+            .model-card-actions .btn {
+                min-width: 0
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <header class="topbar">
+            <div class="brand"><button class="top-icon mobile-menu" id="mobileMenu"
+                    aria-label="Open menu">☰</button><span class="logo">Z</span><span class="brand-label">zombie-gateway
+                    <span style="font-weight:400;color:#7b878e">Admin</span></span><button class="top-icon hide-small"
+                    aria-label="Collapse sidebar" title="Sidebar">▣</button></div>
+            <div class="top-actions"><span class="top-pill"><span class="dot"></span> LOCAL GATEWAY</span><span
+                    class="top-pill" id="headerStatus"
+                    style="color:#9aa6ad;border-color:#343b40;background:#1b2023"><span class="dot"></span> Connecting…</span><button class="top-icon" id="headerRefresh"
+                    title="Refresh current view">↻</button><button class="top-icon" id="headerSettings"
+                    title="Settings">⚙</button></div>
+        </header>
+        <div class="shell">
+            <aside class="sidebar" id="sidebar">
+                <div class="side-inner">
+                    <div class="nav-group">
+                        <div class="group-label">Workspace</div><button class="nav active" data-view="dashboard"><svg
+                                viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+                                <rect x="3" y="3" width="7" height="7" rx="1" />
+                                <rect x="14" y="3" width="7" height="7" rx="1" />
+                                <rect x="3" y="14" width="7" height="7" rx="1" />
+                                <rect x="14" y="14" width="7" height="7" rx="1" />
+                            </svg>Overview</button><button class="nav" data-view="activity"><svg viewBox="0 0 24 24"
+                                fill="none" stroke-width="1.8">
+                                <path d="M4 12h4l3-7 4 14 3-7h2" />
+                            </svg>Activity</button>
+                    </div>
+                    <div class="nav-group">
+                        <div class="group-label">AI Gateway</div><button class="nav" data-view="models"><svg
+                                viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+                                <rect x="4" y="4" width="16" height="16" rx="3" />
+                                <path d="M9 9h6v6H9zM9 1v3m6-3v3M9 20v3m6-3v3M1 9h3m-3 6h3m16-6h3m-3 6h3" />
+                            </svg>Model List <span class="new">CATALOGUE</span></button><button class="nav"
+                            data-view="chat"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+                                <path d="M4 5h16v11H9l-5 4z" />
+                                <path d="M8 9h8M8 12h5" />
+                            </svg>Model Playground</button><button class="nav" data-view="providers"><svg
+                                viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+                                <circle cx="6" cy="6" r="2.5" />
+                                <circle cx="18" cy="6" r="2.5" />
+                                <circle cx="12" cy="18" r="2.5" />
+                                <path d="M8 7.5 10.5 15M16 7.5 13.5 15M8.5 6h7" />
+                            </svg>Providers</button><button class="nav" data-view="runtime"><svg viewBox="0 0 24 24"
+                                fill="none" stroke-width="1.8">
+                                <path
+                                    d="M4 4h16v16H4zM8 8h8v8H8zM1 8h3m-3 8h3m16-8h3m-3 8h3M8 1v3m8-3v3m-8 16v3m8-3v3" />
+                            </svg>Runtime</button>
+                    </div>
+                    <div class="nav-group">
+                        <div class="group-label">Access Management</div><button class="nav" data-view="users"><svg
+                                viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+                                <circle cx="9" cy="8" r="4" />
+                                <path d="M2 21a7 7 0 0 1 14 0M17 4a4 4 0 0 1 0 8M18 15a6 6 0 0 1 4 6" />
+                            </svg>Users</button><button class="nav" data-view="roles"><svg viewBox="0 0 24 24"
+                                fill="none" stroke-width="1.8">
+                                <path d="M12 3 20 6v5c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
+                                <path d="m9 12 2 2 4-4" />
+                            </svg>Roles</button>
+                    </div>
+                    <div class="nav-group">
+                        <div class="group-label">Observability</div><button class="nav" data-view="metrics"><svg
+                                viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+                                <path d="M3 3v18h18M7 15l4-5 4 3 5-7" />
+                            </svg>Usage &amp; Metrics</button><button class="nav" data-view="logs"><svg
+                                viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+                                <path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" />
+                            </svg>Request Logs</button><button class="nav" data-view="sessions"><svg viewBox="0 0 24 24"
+                                fill="none" stroke-width="1.8">
+                                <circle cx="12" cy="8" r="4" />
+                                <path d="M4 21a8 8 0 0 1 16 0" />
+                            </svg>Admin Sessions</button>
+                    </div>
+                    <div class="nav-group">
+                        <div class="group-label">Tools</div><button class="nav" data-view="console"><svg
+                                viewBox="0 0 24 24" fill="none" stroke-width="1.8">
+                                <path d="m4 5 6 7-6 7M12 19h8" />
+                            </svg>API Console</button><button class="nav" data-view="settings"><svg viewBox="0 0 24 24"
+                                fill="none" stroke-width="1.8">
+                                <circle cx="12" cy="12" r="3" />
+                                <path
+                                    d="m19 13.5 2 1.5-2 3-2.5-1-2 1v2h-4v-2l-2-1-2.5 1-2-3 2-1.5v-3L2 9l2-3 2.5 1 2-1V4h4v2l2 1 2.5-1 2 3-2 1.5z" />
+                            </svg>Connection &amp; Auth</button>
+                    </div>
+                </div>
+                <div class="side-foot">zombie-gateway admin<br><span style="color:#48545b">UI reference · static
+                        preview</span></div>
+            </aside>
+            <main class="main" id="main">
+                <section class="view active" id="view-dashboard">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Overview</h1>
+                            <p class="sub">Monitor your gateway, providers and model availability from one place.</p>
+                        </div>
+                        <div style="display:flex;gap:7px;flex-wrap:wrap"><button class="btn" id="refreshAll">↻
+                                Refresh</button><button class="btn green" data-go="models">Browse models ↗</button>
+                        </div>
+                    </div>
+                    <div class="grid stats">
+                        <div class="panel stat">
+                            <div class="stat-label">Total models <span style="color:var(--green)">▦</span></div>
+                            <div class="stat-value" id="statModels">6</div>
+                            <div class="stat-note">Across configured providers</div>
+                        </div>
+                        <div class="panel stat">
+                            <div class="stat-label">Active providers <span style="color:var(--green)">◉</span></div>
+                            <div class="stat-value" id="statProviders">3 <span
+                                    style="font-size:10px;color:#78858b;font-weight:500">/ 4</span></div>
+                            <div class="stat-note">One provider disabled</div>
+                        </div>
+                        <div class="panel stat">
+                            <div class="stat-label">Requests (1h) <span style="color:var(--blue)">⌁</span></div>
+                            <div class="stat-value" id="statRequests">—</div>
+                            <div class="stat-note" id="statRequestsNote">Waiting for gateway…</div>
+                        </div>
+                        <div class="panel stat">
+                            <div class="stat-label">Gateway status <span style="color:var(--green)">●</span></div>
+                            <div class="stat-value" style="font-size:17px;margin-top:12px" id="statGateway"><span class="tag amber"><span
+                                        class="dot"></span> Connecting…</span></div>
+                            <div class="stat-note" id="statGatewayNote">No response yet</div>
+                        </div>
+                    </div>
+                    <div class="grid dashboard-grid">
+                        <div class="panel">
+                            <div class="panel-head">
+                                <div>
+                                    <div class="panel-title">Gateway status</div>
+                                    <div class="panel-desc">Configuration snapshot</div>
+                                </div><span class="tag green" id="dashMode">LIVE</span>
+                            </div>
+                            <div class="panel-body">
+                                <div class="kv"><span class="k">API base URL</span><span class="v mono"
+                                        id="dashBase">http://127.0.0.1:5252</span></div>
+                                <div class="kv"><span class="k">Admin API</span><span class="v" id="dashApi"><span class="tag">Not
+                                            connected</span></span></div>
+                                <div class="kv"><span class="k">Provider schema</span><span class="v">Available in API
+                                        docs</span></div>
+                                <div class="kv"><span class="k">WebSocket</span><span class="v mono" id="dashWs">/admin/metrics/ws</span>
+                                </div>
+                                <div class="kv"><span class="k">Logs directory</span><span class="v mono" id="dashLogDir" style="font-size:10px;word-break:break-all">—</span></div>
+                                <div class="kv"><span class="k">Busiest model (1h)</span><span class="v mono" id="dashTopModel">—</span></div>
+                                <div class="kv"><span class="k">Last update</span><span class="v" id="lastUpdate">Static
+                                        preview</span></div>
+                                <div style="display:flex;gap:7px;margin-top:13px;flex-wrap:wrap"><button
+                                        class="btn green" data-go="settings">Configure connection</button><button
+                                        class="btn" data-go="console">Open API Console</button></div>
+                            </div>
+                        </div>
+                        <div class="panel">
+                            <div class="panel-head">
+                                <div>
+                                    <div class="panel-title">Quick actions</div>
+                                    <div class="panel-desc">Open a section or inspect a demo item</div>
+                                </div>
+                            </div>
+                            <div class="panel-body">
+                                <div class="grid quick-grid"><button class="quick" data-go="models"><span
+                                            class="quick-icon">▦</span><strong>Browse models</strong><span>Inspect model
+                                            cards and available actions</span></button><button class="quick"
+                                        data-go="providers"><span class="quick-icon">◇</span><strong>Manage
+                                            providers</strong><span>View, enable, sync or edit provider
+                                            config</span></button><button class="quick" data-go="runtime"><span
+                                            class="quick-icon">◫</span><strong>Runtime</strong><span>Review loaded model
+                                            state</span></button><button class="quick" data-go="logs"><span
+                                            class="quick-icon">≡</span><strong>Request logs</strong><span>Inspect sample
+                                            request activity</span></button></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel" style="margin-top:11px">
+                        <div class="panel-head">
+                            <div>
+                                <div class="panel-title">Recent activity</div>
+                                <div class="panel-desc">Newest requests recorded by the gateway</div>
+                            </div><button class="btn small" data-go="activity">View activity</button>
+                        </div>
+                        <div class="table-wrap" style="border:0;border-radius:0">
+                            <table style="min-width:520px">
+                                <thead>
+                                    <tr>
+                                        <th>EVENT</th>
+                                        <th>RESOURCE</th>
+                                        <th>STATUS</th>
+                                        <th>TIME</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentActivity"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-models">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Model List</h1>
+                        </div>
+                        <div style="display:flex;gap:7px"><button class="btn" id="modelRefresh">↻ Refresh
+                                list</button><button class="btn green" id="loadModelTop">＋ Load model</button></div>
+                    </div>
+                    <div class="toolbar">
+                        <div class="search"><input id="modelSearch"
+                                placeholder="Search models, providers, capabilities…"></div><select class="select"
+                            id="modelProviderFilter">
+                            <option value="all">All providers</option>
+                            <option>Ollama Local</option>
+                            <option>OpenAI Compatible</option>
+                            <option>llama.cpp</option>
+                            <option>OpenCode</option>
+                        </select><select class="select" id="modelStatusFilter">
+                            <option value="all">All states</option>
+                            <option value="loaded">Loaded</option>
+                            <option value="available">Available</option>
+                        </select><span class="tag" id="modelCount">6 models</span>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head">
+                            <div>
+                                <div class="panel-title">Model catalogue</div>
+                                <div class="panel-desc">Live catalogue from GET /admin/models, including disabled providers.</div>
+                            </div><span class="tag" id="modelCountBadge">6 models</span>
+                        </div>
+                        <div class="model-grid" id="modelsGrid"></div>
+                        <div class="empty" id="modelsEmpty" style="display:none">
+                            <div class="empty-icon">⌕</div><strong>No models match</strong>
+                            <p>Change the search or provider filter.</p>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-providers">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Providers</h1>
+                        </div>
+                        <div style="display:flex;gap:7px;flex-wrap:wrap"><button class="btn" id="schemaBtn">View
+                                schema</button><button class="btn" id="syncAllBtn">↻ Sync all</button><button
+                                class="btn green" id="addProviderBtn">＋ Add provider</button></div>
+                    </div>
+                    <div class="toolbar">
+                        <div class="search"><input id="providerSearch" placeholder="Search providers…"></div><select
+                            class="select" id="providerFilter">
+                            <option value="all">All providers</option>
+                            <option value="enabled">Enabled</option>
+                            <option value="disabled">Disabled</option>
+                        </select><span class="tag" id="providerCount">4 providers</span>
+                    </div>
+                    <div class="panel">
+                        <div class="table-wrap" style="border:0;border-radius:7px">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>PROVIDER</th>
+                                        <th>KIND</th>
+                                        <th>BASE URL</th>
+                                        <th>MODELS</th>
+                                        <th>STATUS</th>
+                                        <th style="text-align:right">ACTIONS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="providersTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-chat">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Model Playground</h1>
+                        </div><span class="tag amber">LIVE REQUESTS WHEN SENT</span>
+                    </div>
+                    <div class="chat-layout">
+                        <div class="panel chat-side">
+                            <div class="panel-title" style="margin-bottom:12px">Test configuration</div>
+                            <div class="form-row" style="margin-bottom:12px"><label>MODEL</label><select class="field"
+                                    id="chatModel"></select></div>
+                            <div class="form-row" style="margin-bottom:12px"><label>API BASE URL</label><input
+                                    class="field mono" id="chatBase" value="http://127.0.0.1:5252/v1"></div>
+                            <div class="form-row" style="margin-bottom:12px"><label>API KEY / TOKEN
+                                    (OPTIONAL)</label><input class="field" id="chatToken" type="password"
+                                    autocomplete="off" placeholder="Bearer token, if required"></div>
+                            <div class="form-row" style="margin-bottom:12px"><label>TEMPERATURE</label><input
+                                    class="field" id="chatTemperature" type="number" min="0" max="2" step="0.1"
+                                    value="0.7"></div>
+                            <div class="form-row" style="margin-bottom:12px"><label>MAX TOKENS</label><input
+                                    class="field" id="chatMaxTokens" type="number" min="1" max="32768" value="512">
+                            </div><button class="btn" id="chatClear" style="width:100%">Clear conversation</button>
+                    
+                        </div>
+                        <div class="panel" style="display:flex;flex-direction:column;min-width:0">
+                            <div class="panel-head">
+                                <div>
+                                    <div class="panel-title">Conversation</div>
+                                    <div class="panel-desc" id="chatStatus">No request sent yet</div>
+                                    <div id="chatMeta" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+                                </div><button class="btn small" id="chatExport">Copy transcript</button>
+                            </div>
+                            <div class="chat-transcript" id="chatTranscript">
+                                <div class="chat-empty"><strong>Ready to test a model</strong>Select a model, enter a
+                                    prompt, and send it. The response will appear here.</div>
+                            </div>
+                            <div class="chat-compose"><textarea class="field" id="chatPrompt"
+                                    placeholder="Message the selected model… (Ctrl/⌘ + Enter to send)"
+                                    rows="2"></textarea><button class="btn green" id="chatSend">Send</button></div>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-users">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Users</h1>
+                        </div><button class="btn green" id="addUserBtn">＋ Add user</button>
+                    </div>
+                    <div class="toolbar">
+                        <div class="search"><input id="userSearch" placeholder="Search users, email, role…"></div>
+                        <select class="select" id="userStatus">
+                            <option value="all">All statuses</option>
+                            <option>Active</option>
+                            <option>Invited</option>
+                            <option>Disabled</option>
+                        </select>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head">
+                            <div>
+                                <div class="panel-title">User directory</div>
+                                <div class="panel-desc">Mock records · align actions consistently at row end</div>
+                            </div><span class="tag" id="userCount">3 users</span>
+                        </div>
+                        <div class="table-wrap" style="border:0;border-radius:0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>USER</th>
+                                        <th>ROLE</th>
+                                        <th>STATUS</th>
+                                        <th>LAST ACTIVE</th>
+                                        <th style="text-align:right">ACTIONS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-roles">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Roles &amp; Permissions</h1>
+                        </div><button class="btn green" id="addRoleBtn">＋ Add role</button>
+                    </div>
+                    <div class="grid stats" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+                        <div class="panel stat">
+                            <div class="stat-label">Defined roles</div>
+                            <div class="stat-value">3</div>
+                            <div class="stat-note">Browser-local placeholder</div>
+                        </div>
+                        <div class="panel stat">
+                            <div class="stat-label">Permission groups</div>
+                            <div class="stat-value">5</div>
+                            <div class="stat-note">Illustrative capabilities</div>
+                        </div>
+                        <div class="panel stat">
+                            <div class="stat-label">Enforced by API</div>
+                            <div class="stat-value" style="color:var(--amber)">No</div>
+                            <div class="stat-note">Backend support not documented</div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head">
+                            <div>
+                                <div class="panel-title">Role matrix</div>
+                                <div class="panel-desc">Permission assignments are mock data and do not secure
+                                    endpoints.</div>
+                            </div>
+                        </div>
+                        <div class="table-wrap" style="border:0;border-radius:0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ROLE</th>
+                                        <th>DESCRIPTION</th>
+                                        <th>VIEW DASHBOARD</th>
+                                        <th>MANAGE MODELS</th>
+                                        <th>MANAGE PROVIDERS</th>
+                                        <th>MANAGE USERS</th>
+                                        <th>SETTINGS</th>
+                                        <th style="text-align:right">ACTIONS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rolesTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-runtime">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Runtime</h1>
+                        </div>
+                        <div style="display:flex;gap:7px"><button class="btn" id="runtimeRefresh">↻ Refresh runtime</button><button class="btn" data-go="models">Manage models</button></div>
+                    </div>
+                    <div class="grid stats">
+                        <div class="panel stat">
+                            <div class="stat-label">Loaded models</div>
+                            <div class="stat-value" id="loadedCount">2</div>
+                            <div class="stat-note">From GET /admin/runtime</div>
+                        </div>
+                        <div class="panel stat">
+                            <div class="stat-label">Runtime state</div>
+                            <div class="stat-value" style="font-size:16px;margin-top:12px"><span class="tag" id="runtimeState">—</span></div>
+                            <div class="stat-note">No live runtime query</div>
+                        </div>
+                        <div class="panel stat">
+                            <div class="stat-label">Last runtime read</div>
+                            <div class="stat-value" style="font-size:15px" id="runtimeLastRead">—</div>
+                            <div class="stat-note">GET /admin/runtime</div>
+                        </div>
+                        <div class="panel stat">
+                            <div class="stat-label">Logs directory</div>
+                            <div class="stat-value mono" style="font-size:10px;line-height:1.5;margin-top:9px;word-break:break-all" id="runtimeLogDir">—</div>
+                            <div class="stat-note">access · gateway · llama-server · llama-model</div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head">
+                            <div>
+                                <div class="panel-title">Loaded model state</div>
+                                <div class="panel-desc">Live reachability and residency from GET /admin/runtime.</div>
+                            </div>
+                        </div>
+                        <div class="table-wrap" style="border:0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>MODEL</th>
+                                        <th>PROVIDER</th>
+                                        <th>RUNTIME STATE</th>
+                                        <th style="text-align:right">ACTION</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="runtimeTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head">
+                            <div>
+                                <div class="panel-title">Per-model performance</div>
+                                <div class="panel-desc" id="modelStatsSummary">Calls, errors, latency and tokens per model (GET /admin/model-stats).</div>
+                            </div>
+                            <select class="select" id="modelStatsWindow" style="min-width:130px">
+                                <option value="3600000">Last hour</option>
+                                <option value="86400000">Last 24h</option>
+                                <option value="604800000">Last 7 days</option>
+                            </select>
+                        </div>
+                        <div class="table-wrap" style="border:0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>MODEL</th>
+                                        <th>REQUESTS</th>
+                                        <th>ERRORS</th>
+                                        <th>AVG</th>
+                                        <th>MAX</th>
+                                        <th>TOKENS</th>
+                                        <th>LAST REQUEST</th>
+                                        <th style="text-align:right">ACTION</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modelStatsTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-metrics">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Usage &amp; Metrics</h1>
+                        
+                        </div><button class="btn" id="metricsRefresh">↻ Refresh metrics</button>
+                    </div>
+                    <div class="grid stats">
+                        <div class="panel stat">
+                            <div class="stat-label">Total requests</div>
+                            <div class="stat-value" id="statTotalRequests">—</div>
+                            <div class="stat-note" id="statWindowNote">Window: last hour</div>
+                        </div>
+                        <div class="panel stat">
+                            <div class="stat-label">Total tokens</div>
+                            <div class="stat-value" id="statTokens">—</div>
+                            <div class="stat-note">Prompt + completion</div>
+                        </div>
+                        <div class="panel stat">
+                            <div class="stat-label">Error rate</div>
+                            <div class="stat-value" id="statErrorRate">—</div>
+                            <div class="stat-note">4xx/5xx share</div>
+                        </div>
+                        <div class="panel stat">
+                            <div class="stat-label">Average latency</div>
+                            <div class="stat-value" id="statAvgLatency">—</div>
+                            <div class="stat-note">Completed requests</div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head">
+                            <div>
+                                <div class="panel-title">Request volume</div>
+                                <div class="panel-desc">Live request volume from /admin/metrics (60 one-minute buckets).</div>
+                            </div><select class="select">
+                                <option>Last 24 hours</option>
+                                <option>Last 7 days</option>
+                                <option>Last 30 days</option>
+                            </select>
+                        </div>
+                        <div class="panel-body">
+                            <div style="height:170px;display:flex;align-items:end;gap:8px;padding:10px 4px 22px;border-bottom:1px solid #2b3034"
+                                id="chartBars"></div>
+                            <div
+                                style="display:flex;justify-content:space-between;color:#66727a;font-size:9px;padding-top:8px">
+                                <span>00:00</span><span>04:00</span><span>08:00</span><span>12:00</span><span>16:00</span><span>20:00</span><span>24:00</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-logs">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Logs</h1>
+                        </div><button class="btn" id="logsRefresh">↻ Refresh</button>
+                    </div>
+                    <div class="toolbar">
+                        <div class="search"><input id="logSearch" placeholder="Search request ID, model, route…"></div>
+                        <select class="select">
+                            <option>Last 24 hours</option>
+                            <option>Last 7 days</option>
+                        </select><select class="select">
+                            <option>All statuses</option>
+                            <option>Success</option>
+                            <option>Error</option>
+                        </select>
+                    </div>
+                    <div class="panel">
+                        <div class="table-wrap" style="border:0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>TIME</th>
+                                        <th>REQUEST ID</th>
+                                        <th>MODEL</th>
+                                        <th>ROUTE</th>
+                                        <th>LATENCY</th>
+                                        <th>STATUS</th>
+                                        <th>ACTION</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="logsTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head">
+                            <div>
+                                <div class="panel-title">Server log files</div>
+                                <div class="panel-desc mono" id="logFilePath">logs/</div>
+                                <div class="panel-desc" id="logFileMeta" style="margin-top:3px">—</div>
+                            </div>
+                            <div style="display:flex;gap:7px;align-items:center">
+                                <select class="select" id="logFile" style="min-width:190px">
+                                    <option value="access">access.jsonl</option>
+                                    <option value="gateway">gateway.jsonl</option>
+                                    <option value="llama-server">llama-server.jsonl</option>
+                                    <option value="llama-model">llama-model.log</option>
+                                </select>
+                                <button class="btn small" id="logFileRefresh">↻ Tail</button>
+                            </div>
+                        </div>
+                        <div class="table-wrap" style="border:0;max-height:420px;overflow:auto">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width:88px">LINE</th>
+                                        <th>CONTENT</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fileLogTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-sessions">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Admin Sessions</h1>
+                        </div><button class="btn" id="sessionsRefresh">↻ Refresh</button>
+                    </div>
+                    <div class="panel">
+                        <div class="table-wrap" style="border:0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>SESSION ID</th>
+                                        <th>REMOTE ADDRESS</th>
+                                        <th>USER AGENT</th>
+                                        <th>OPENED</th>
+                                        <th>STATUS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sessionsTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-activity">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Activity</h1>
+                        </div><button class="btn" id="activityRefresh">↻ Refresh</button>
+                    </div>
+                    <div class="panel">
+                        <div class="table-wrap" style="border:0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>EVENT</th>
+                                        <th>RESOURCE</th>
+                                        <th>DETAIL</th>
+                                        <th>TIME</th>
+                                        <th>RESULT</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="activityTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-console">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">API Console</h1>
+                        </div><span class="tag green">LIVE</span>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head">
+                            <div class="panel-title">Request builder</div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="form-grid">
+                                <div class="form-row"><label>HTTP METHOD</label><select class="field" id="apiMethod">
+                                        <option>GET</option>
+                                        <option>POST</option>
+                                        <option>PATCH</option>
+                                        <option>DELETE</option>
+                                    </select></div>
+                                <div class="form-row"><label>API PATH</label><input class="field mono" id="apiPath"
+                                        value="/admin/models"></div>
+                                <div class="form-row full"><label>JSON BODY</label><textarea class="field mono"
+                                        id="apiBody"
+                                        placeholder='{"id":"ollama-local","kind":"ollama","base_url":"http://127.0.0.1:11434"}'></textarea>
+                                </div>
+                                <div class="form-row full" style="display:flex;gap:7px"><button class="btn green"
+                                        id="apiSend">Run preview</button><button class="btn"
+                                        id="apiClear">Clear</button></div>
+                            </div>
+                            <div style="margin-top:13px">
+                                <div class="panel-title" style="margin-bottom:7px">Response preview</div>
+                                <div id="apiMeta" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
+                                <pre id="apiOutput" class="mono"
+                                    style="margin:0;padding:12px;background:#111517;border:1px solid #2c3236;border-radius:6px;color:#a8e8bc;white-space:pre-wrap;overflow-wrap:anywhere">No request executed. This is a static UI preview.</pre>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section class="view" id="view-settings">
+                    <div class="page-head">
+                        <div>
+                            <h1 class="page-title">Connection &amp; Auth</h1>
+                        </div><span class="tag amber" id="settingsStatus">CHECKING…</span>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head">
+                            <div>
+                                <div class="panel-title">Gateway connection</div>
+                                <div class="panel-desc">Layout only — Save updates the local preview state.</div>
+                            </div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="form-grid">
+                                <div class="form-row full"><label>BASE URL</label><input class="field mono" id="baseUrl"
+                                        value="http://127.0.0.1:5252"></div>
+                                <div class="form-row"><label>ADMIN TOKEN (OPTIONAL)</label><input class="field"
+                                        id="adminToken" type="password" autocomplete="off"
+                                        placeholder="Bearer token / x-admin-token"></div>
+                                <div class="form-row"><label>AUTH HEADER</label><select class="field" id="authMode">
+                                        <option>Authorization: Bearer</option>
+                                        <option>x-admin-token</option>
+                                        <option>No auth (local dev only)</option>
+                                    </select></div>
+                                <div class="form-row full"><label>REQUEST TIMEOUT (MS)</label><input class="field"
+                                        type="number" id="timeout" value="8000"></div>
+                                <div class="form-row full" style="display:flex;gap:7px"><button class="btn green"
+                                        id="saveSettings">Save preview settings</button><button class="btn"
+                                        id="resetSettings">Reset</button><button class="btn" id="testConnection">Test
+                                        connection (demo)</button></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+    <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true">
+        <div class="modal">
+            <div class="modal-head">
+                <div class="modal-title" id="modalTitle">Details</div><button class="top-icon" id="modalClose"
+                    aria-label="Close">×</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-foot" id="modalFoot"><button class="btn" id="modalCancel">Close</button></div>
+        </div>
+    </div>
+    <div class="toast" id="toast" role="status"></div>
+    <script>
+        const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(window.toastTimer); window.toastTimer = setTimeout(() => t.classList.remove('show'), 2600) }
+        function rel(iso) { if (!iso) return '—'; const d = (Date.now() - new Date(iso).getTime()) / 1000; if (!isFinite(d)) return '—'; if (d < 60) return Math.max(0, Math.round(d)) + 's ago'; if (d < 3600) return Math.round(d / 60) + 'm ago'; if (d < 86400) return Math.round(d / 3600) + 'h ago'; return Math.round(d / 86400) + 'd ago' }
+        const clock = iso => iso ? new Date(iso).toLocaleTimeString([], { hour12: false }) : '—';
+        const ms = v => v === null || v === undefined ? '—' : (v < 1000 ? Math.round(v) + ' ms' : (v / 1000).toFixed(2) + ' s');
+        const num = v => Number(v || 0).toLocaleString();
+        const ctxLabel = n => !n ? '—' : (n >= 1024 ? Math.round(n / 1024) + 'K' : String(n));
+        function metaChips(target, chips) {
+            const el = typeof target === 'string' ? $(target) : target;
+            if (!el) return;
+            el.innerHTML = chips.filter(Boolean).map(c => `<span class="tag ${c.tone || ''}">${esc(c.label)}</span>`).join('');
+        }
+
+        // ---------------------------------------------------------------- state ---
+        // Everything below is filled from the live admin API. Nothing on this page
+        // is a sample: an empty array means the gateway returned nothing.
+        const state = {
+            base: localStorage.getItem('zg.base') || (location.protocol.startsWith('http') ? location.origin : 'http://127.0.0.1:5252'),
+            token: sessionStorage.getItem('zg.token') || '',
+            authMode: localStorage.getItem('zg.auth') || 'bearer',
+            timeout: Number(localStorage.getItem('zg.timeout')) || 15000,
+            ws: null, wsRetry: 0, pingTimer: null, reconnectTimer: null,
+            connected: false, lastUpdate: null, metrics: null, system: null,
+            modelStatsWindow: Number(localStorage.getItem('zg.statsWindow')) || 3600000,
+            logTail: null, logName: localStorage.getItem('zg.logFile') || 'access'
+        };
+        let models = [], providers = [], requests = [], sessions = [], runtime = [], modelStats = [], loaded = new Set();
+
+        function authHeaders() {
+            const h = { accept: 'application/json' };
+            if (!state.token) return h;
+            if (state.authMode === 'x-admin-token') h['x-admin-token'] = state.token;
+            else if (state.authMode === 'none') { /* local dev: no auth header */ }
+            else h['authorization'] = 'Bearer ' + state.token;
+            return h;
+        }
+
+        async function api(path, options = {}) {
+            const url = /^https?:\/\//i.test(path) ? path : state.base.replace(/\/$/, '') + path;
+            const headers = { ...authHeaders(), ...(options.headers || {}) };
+            if (options.body && !headers['content-type']) headers['content-type'] = 'application/json';
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), state.timeout);
+            try {
+                const response = await fetch(url, { ...options, headers, signal: controller.signal });
+                const text = await response.text();
+                let body = null;
+                try { body = text ? JSON.parse(text) : null } catch { body = { raw: text } }
+                if (!response.ok) {
+                    const message = (body && body.error && body.error.message) || ('HTTP ' + response.status);
+                    const error = new Error(message);
+                    error.status = response.status;
+                    error.body = body;
+                    throw error;
+                }
+                return body;
+            } finally { clearTimeout(timer) }
+        }
+
+        // ------------------------------------------------------------- loaders ---
+        async function loadSystem() { state.system = await api('/admin/system'); renderDashboard() }
+
+        async function loadProviders() {
+            const body = await api('/admin/providers');
+            providers = (body.data || []).map(p => ({
+                id: p.id, name: p.id, kind: p.kind, url: p.base_url, count: p.active_models || 0,
+                enabled: !!p.enabled, transport: p.transport, notes: p.notes || '',
+                lastError: p.last_error || null, source: p.source, authenticated: !!p.authenticated,
+                socket: p.socket_path || null, timeout: p.timeout_ms
+            }));
+            renderProviders(); renderDashboard();
+        }
+
+        async function loadModels() {
+            const body = await api('/admin/models?include_disabled=1');
+            models = (body.data || []).map(m => ({
+                id: m.full_id, providerId: m.provider_id, provider: m.provider_id, kind: (providers.find(p => p.id === m.provider_id) || {}).kind || m.provider_id,
+                caps: m.caps || [], context: ctxLabel(m.context_length), contextLength: m.context_length,
+                upstream: m.upstream_id, family: m.family, quant: m.quantization, size: m.size_bytes,
+                source: m.source, lastSeen: m.last_seen_at, providerEnabled: !!m.provider_enabled
+            }));
+            renderModels(); populateChatModels();
+        }
+
+        async function loadRuntime() {
+            const body = await api('/admin/runtime');
+            runtime = body.data || [];
+            loaded = new Set();
+            for (const entry of runtime) {
+                for (const m of models.filter(x => x.providerId === entry.id)) {
+                    const names = (entry.loaded_models || []).map(x => x.model).filter(Boolean);
+                    const alias = entry.model_alias || null;
+                    if (names.includes(m.upstream)) loaded.add(m.id);
+                    else if (entry.kind === 'llamacpp' && entry.reachable && alias && alias === m.upstream) loaded.add(m.id);
+                }
+            }
+            renderRuntime(); renderModels(); renderDashboard();
+        }
+
+        async function loadRequests() {
+            const body = await api('/admin/requests?limit=100');
+            requests = body.data || [];
+            renderLogs(); renderActivity(); renderDashboard();
+        }
+
+        async function loadSessions() {
+            const body = await api('/admin/sessions?limit=50');
+            sessions = body.data || [];
+            renderSessions();
+        }
+
+        async function loadMetrics() {
+            state.metrics = await api('/admin/metrics?window_ms=' + (60 * 60 * 1000));
+            renderMetrics(); renderDashboard();
+        }
+
+        async function loadModelStats() {
+            const body = await api('/admin/model-stats?window_ms=' + state.modelStatsWindow);
+            modelStats = body.data || [];
+            renderModelStats(); renderDashboard();
+        }
+
+        async function loadLogFile() {
+            const name = ($('#logFile') && $('#logFile').value) || state.logName || 'access';
+            const body = await api('/admin/logs?file=' + encodeURIComponent(name) + '&limit=200');
+            state.logTail = body;
+            state.logName = name;
+            localStorage.setItem('zg.logFile', name);
+            renderFileLog();
+        }
+
+        async function refreshAll(silent = false) {
+            const jobs = [loadSystem, loadProviders, loadModels, loadRequests, loadSessions, loadMetrics, loadModelStats];
+            const results = await Promise.allSettled(jobs.map(fn => fn()));
+            const failed = results.filter(r => r.status === 'rejected');
+            state.lastUpdate = new Date();
+            $('#lastUpdate').textContent = state.lastUpdate.toLocaleTimeString();
+            if (failed.length === 0) {
+                setConnected(true);
+                if (!silent) toast('Loaded live data from ' + state.base);
+            } else {
+                setConnected(false);
+                const first = failed[0].reason;
+                if (!silent) toast('Load failed: ' + (first && first.message ? first.message : 'gateway unreachable'));
+            }
+            await loadRuntime().catch(() => { });
+            if ($('#view-logs') && $('#view-logs').classList.contains('active')) {
+                await loadLogFile().catch(() => { });
+            }
+        }
+
+        function setConnected(ok) {
+            state.connected = ok;
+            const pill = $('#headerStatus');
+            pill.style.color = ok ? '#8ff0b8' : '#f0b3b3';
+            pill.style.borderColor = ok ? '#245c3a' : '#5c2b2b';
+            pill.style.background = ok ? '#12281b' : '#2a1717';
+            pill.innerHTML = '<span class="dot"></span> ' + (ok ? 'Live · ' + state.base.replace(/^https?:\/\//, '') : 'Disconnected');
+            $('#dashMode').textContent = ok ? 'LIVE' : 'OFFLINE';
+            $('#dashMode').className = 'tag ' + (ok ? 'green' : 'red');
+            $('#settingsStatus').textContent = ok ? 'CONNECTED' : 'NOT CONNECTED';
+            $('#settingsStatus').className = 'tag ' + (ok ? 'green' : 'red');
+            $('#dashBase').textContent = state.base;
+            $('#dashApi').innerHTML = ok ? '<span class="tag green"><span class="dot"></span> Reachable</span>' : '<span class="tag red">Unreachable</span>';
+            $('#statGateway').innerHTML = ok
+                ? '<span class="tag green"><span class="dot"></span> Online</span>'
+                : '<span class="tag red"><span class="dot"></span> Offline</span>';
+            $('#statGatewayNote').textContent = ok ? (state.system ? 'uptime ' + Math.round((state.system.uptime_ms || 0) / 1000) + 's · v' + state.system.identity.version : 'Connected') : 'No response from ' + state.base;
+        }
+
+        // --------------------------------------------------------- websocket ---
+        // The socket is the only path that keeps metrics fresh without polling.
+        // Ping every 20s so an idle proxy cannot drop it; reconnect with backoff
+        // and never open a second socket while one is still CONNECTING/OPEN.
+        function wsUrl() {
+            const base = state.base.replace(/^http/, 'ws').replace(/\/$/, '');
+            const query = state.token ? '?token=' + encodeURIComponent(state.token) : '';
+            return base + '/admin/metrics/ws' + query;
+        }
+
+        function connectWs() {
+            if (state.ws && (state.ws.readyState === 0 || state.ws.readyState === 1)) return;
+            let ws;
+            try { ws = new WebSocket(wsUrl()) } catch (e) { scheduleReconnect(); return }
+            state.ws = ws;
+            ws.onopen = () => {
+                state.wsRetry = 0;
+                $('#dashWs').textContent = '/admin/metrics/ws · open';
+                clearInterval(state.pingTimer);
+                state.pingTimer = setInterval(() => {
+                    if (ws.readyState === 1) { try { ws.send(JSON.stringify({ type: 'ping' })) } catch { } }
+                }, 20000);
+            };
+            ws.onmessage = event => {
+                let message;
+                try { message = JSON.parse(event.data) } catch { return }
+                if (message.type === 'metrics') {
+                    state.metrics = message.data;
+                    renderMetrics(); renderDashboard();
+                } else if (message.type === 'error') {
+                    toast('Socket: ' + message.message);
+                }
+            };
+            ws.onclose = () => {
+                clearInterval(state.pingTimer);
+                $('#dashWs').textContent = '/admin/metrics/ws · reconnecting';
+                scheduleReconnect();
+            };
+            ws.onerror = () => { try { ws.close() } catch { } };
+        }
+
+        function scheduleReconnect() {
+            if (state.reconnectTimer) return;
+            const delay = Math.min(15000, 1000 * Math.pow(2, state.wsRetry));
+            state.wsRetry = Math.min(state.wsRetry + 1, 5);
+            state.reconnectTimer = setTimeout(() => {
+                state.reconnectTimer = null;
+                if (!document.hidden) connectWs();
+            }, delay);
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && (!state.ws || state.ws.readyState > 1)) {
+                state.wsRetry = 0;
+                connectWs();
+                refreshAll(true);
+            }
+        });
+
+        // ------------------------------------------------------------- render ---
+        function go(view) {
+            $$('.view').forEach(x => x.classList.toggle('active', x.id === 'view-' + view));
+            $$('.nav').forEach(x => x.classList.toggle('active', x.dataset.view === view));
+            $('#sidebar').classList.remove('open'); $('#main').scrollTop = 0;
+            if (view === 'models') renderModels();
+            if (view === 'providers') renderProviders();
+            if (view === 'runtime') { renderRuntime(); loadModelStats().catch(() => { }); }
+            if (view === 'logs') { renderLogs(); loadLogFile().catch(() => { }); }
+            if (view === 'sessions') renderSessions();
+            if (view === 'activity') renderActivity();
+            if (view === 'users') renderUsers();
+            if (view === 'roles') renderRoles();
+            if (view === 'chat') populateChatModels();
+            if (view === 'metrics') renderMetrics();
+            if (view === 'dashboard') renderDashboard();
+        }
+        $$('[data-view]').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
+        $$('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
+
+        function renderModels() {
+            const q = ($('#modelSearch')?.value || '').toLowerCase();
+            const pf = $('#modelProviderFilter')?.value || 'all';
+            const sf = $('#modelStatusFilter')?.value || 'all';
+            const list = models.filter(m => (m.id + ' ' + m.provider + ' ' + m.caps.join(' ')).toLowerCase().includes(q)
+                && (pf === 'all' || m.providerId === pf)
+                && (sf === 'all' || (sf === 'loaded' ? loaded.has(m.id) : !loaded.has(m.id))));
+            $('#modelsGrid').innerHTML = list.map(m => `<article class="model-card"><div class="model-card-head"><div><div class="model-card-name">${esc(m.id)}</div><div class="model-card-meta">${esc(m.provider)} · ${esc(m.kind)}</div></div>${!m.providerEnabled ? '<span class="tag red">Provider disabled</span>' : loaded.has(m.id) ? '<span class="tag green">Loaded</span>' : '<span class="tag">Available</span>'}</div><div class="model-card-tags">${m.caps.map(c => `<span class="tag">${esc(c)}</span>`).join(' ')}</div><div class="model-card-stats"><div class="model-card-stat"><span>Context</span><strong>${esc(m.context)}</strong></div><div class="model-card-stat"><span>Provider ID</span><strong class="mono">${esc(m.providerId)}</strong></div></div><div class="model-card-actions"><button class="btn" data-model-detail="${esc(m.id)}">Inspect</button><button class="btn ${loaded.has(m.id) ? 'danger' : 'softgreen'}" data-model-toggle="${esc(m.id)}">${loaded.has(m.id) ? 'Unload' : 'Load'}</button><button class="btn" data-model-chat="${esc(m.id)}">Test chat</button></div></article>`).join('');
+            $('#modelCount').textContent = list.length + ' model' + (list.length === 1 ? '' : 's');
+            $('#modelCountBadge').textContent = list.length + ' shown';
+            $('#modelsEmpty').style.display = list.length ? 'none' : 'block';
+            const filter = $('#modelProviderFilter');
+            const current = filter.value;
+            filter.innerHTML = '<option value="all">All providers</option>' + providers.map(p => `<option value="${esc(p.id)}">${esc(p.id)}</option>`).join('');
+            if ([...filter.options].some(o => o.value === current)) filter.value = current;
+            $$('[data-model-detail]').forEach(b => b.onclick = () => modelDetail(b.dataset.modelDetail));
+            $$('[data-model-toggle]').forEach(b => b.onclick = () => toggleModel(b.dataset.modelToggle));
+            $$('[data-model-chat]').forEach(b => b.onclick = () => { go('chat'); $('#chatModel').value = b.dataset.modelChat; $('#chatPrompt').focus() });
+        }
+
+        function modelDetail(id) {
+            const m = models.find(x => x.id === id); if (!m) return;
+            openModal('Model details', `<div class="detail-grid"><div class="detail-cell" style="grid-column:span 2"><div class="k">MODEL ID</div><div class="v mono">${esc(m.id)}</div></div><div class="detail-cell"><div class="k">PROVIDER</div><div class="v">${esc(m.provider)}</div></div><div class="detail-cell"><div class="k">KIND</div><div class="v">${esc(m.kind)}</div></div><div class="detail-cell"><div class="k">CONTEXT</div><div class="v">${esc(m.context)}</div></div><div class="detail-cell"><div class="k">STATE</div><div class="v">${loaded.has(m.id) ? 'Loaded' : 'Available'}</div></div><div class="detail-cell" style="grid-column:span 2"><div class="k">UPSTREAM ID</div><div class="v mono">${esc(m.upstream)}</div></div><div class="detail-cell"><div class="k">FAMILY</div><div class="v">${esc(m.family || '—')}</div></div><div class="detail-cell"><div class="k">QUANT</div><div class="v">${esc(m.quant || '—')}</div></div><div class="detail-cell"><div class="k">SIZE</div><div class="v">${m.size ? Math.round(m.size / 1024 / 1024) + ' MB' : '—'}</div></div><div class="detail-cell"><div class="k">CAPABILITIES</div><div class="v">${esc(m.caps.join(', ') || '—')}</div></div><div class="detail-cell"><div class="k">LAST SEEN</div><div class="v">${esc(rel(m.lastSeen))}</div></div></div>`,
+                [{ label: loaded.has(m.id) ? 'Unload model' : 'Load model', cls: loaded.has(m.id) ? 'danger' : 'green', fn: () => { toggleModel(m.id); closeModal() } }]);
+        }
+
+        async function toggleModel(id) {
+            const isLoaded = loaded.has(id);
+            try {
+                const body = await api('/admin/models/' + (isLoaded ? 'unload' : 'load'), { method: 'POST', body: JSON.stringify({ model: id }) });
+                toast((isLoaded ? 'Unloaded ' : 'Loaded ') + id + (body && body.ok === false ? ' · ' + (body.error || 'not confirmed') : ''));
+            } catch (e) { toast('Model action failed: ' + e.message) }
+            await loadRuntime().catch(() => { });
+            renderModels();
+        }
+
+        function renderProviders() {
+            const q = ($('#providerSearch')?.value || '').toLowerCase();
+            const f = $('#providerFilter')?.value || 'all';
+            const list = providers.filter(p => (p.id + ' ' + p.kind + ' ' + p.url).toLowerCase().includes(q) && (f === 'all' || (f === 'enabled' ? p.enabled : !p.enabled)));
+            $('#providersTable').innerHTML = list.map(p => `<tr><td><div class="item-name">${esc(p.id)}</div><div class="item-sub mono">${esc(p.source || 'env')}${p.lastError ? ' · ' + esc(p.lastError) : ''}</div></td><td><span class="tag">${esc(p.kind)}</span></td><td class="mono" style="font-size:9px">${esc(p.url)}${p.socket ? '<br>' + esc(p.socket) : ''}</td><td>${p.count} model${p.count === 1 ? '' : 's'}</td><td>${p.enabled ? '<span class="tag green"><span class="dot"></span> Enabled</span>' : '<span class="tag red">Disabled</span>'}</td><td><div class="row-actions"><button class="btn small" data-provider-detail="${esc(p.id)}">View</button><button class="btn small" data-provider-edit="${esc(p.id)}">Edit</button><button class="btn small" data-provider-toggle="${esc(p.id)}">${p.enabled ? 'Disable' : 'Enable'}</button><button class="btn small" data-provider-sync="${esc(p.id)}">Sync</button></div></td></tr>`).join('') || '<tr><td colspan="6"><div class="empty">No providers match this filter.</div></td></tr>';
+            $('#providerCount').textContent = list.length + ' provider' + (list.length === 1 ? '' : 's');
+            $$('[data-provider-detail]').forEach(b => b.onclick = () => providerDetail(b.dataset.providerDetail));
+            $$('[data-provider-edit]').forEach(b => b.onclick = () => providerForm(b.dataset.providerEdit));
+            $$('[data-provider-toggle]').forEach(b => b.onclick = () => toggleProvider(b.dataset.providerToggle));
+            $$('[data-provider-sync]').forEach(b => b.onclick = () => syncProvider(b.dataset.providerSync));
+        }
+
+        function providerDetail(id) {
+            const p = providers.find(x => x.id === id); if (!p) return;
+            openModal('Provider details', `<div class="detail-grid"><div class="detail-cell"><div class="k">ID</div><div class="v mono">${esc(p.id)}</div></div><div class="detail-cell"><div class="k">KIND</div><div class="v">${esc(p.kind)}</div></div><div class="detail-cell"><div class="k">STATE</div><div class="v">${p.enabled ? 'Enabled' : 'Disabled'}</div></div><div class="detail-cell" style="grid-column:span 3"><div class="k">BASE URL</div><div class="v mono">${esc(p.url)}</div></div><div class="detail-cell"><div class="k">TRANSPORT</div><div class="v">${esc(p.transport)}</div></div><div class="detail-cell"><div class="k">MODEL COUNT</div><div class="v">${p.count}</div></div><div class="detail-cell"><div class="k">AUTHENTICATED</div><div class="v">${p.authenticated ? 'yes' : 'no'}</div></div><div class="detail-cell" style="grid-column:span 3"><div class="k">LAST ERROR</div><div class="v mono">${esc(p.lastError || 'none')}</div></div></div>`);
+        }
+
+        async function toggleProvider(id) {
+            const p = providers.find(x => x.id === id); if (!p) return;
+            try {
+                await api('/admin/providers/' + encodeURIComponent(id) + '/' + (p.enabled ? 'disable' : 'enable'), { method: 'POST' });
+                toast(id + (p.enabled ? ' disabled' : ' enabled'));
+                await loadProviders(); await loadModels(); await loadRequests();
+            } catch (e) { toast('Provider action failed: ' + e.message) }
+        }
+
+        async function syncProvider(id) {
+            try {
+                const report = await api('/admin/providers/' + encodeURIComponent(id) + '/sync', { method: 'POST' });
+                toast(id + ' sync: ' + (report.ok ? report.models + ' models' : 'failed · ' + (report.error || 'unknown')));
+                await loadProviders(); await loadModels();
+            } catch (e) { toast('Sync failed: ' + e.message) }
+        }
+
+        function providerForm(id) {
+            const p = id ? providers.find(x => x.id === id) : { id: '', kind: 'ollama', url: 'http://127.0.0.1:11434', transport: 'http', notes: '', enabled: true };
+            openModal(id ? 'Edit provider' : 'Add provider', `<div class="form-grid"><div class="form-row"><label>PROVIDER ID</label><input class="field" id="pfId" value="${esc(p.id)}" ${id ? 'readonly' : ''}></div><div class="form-row"><label>KIND</label><select class="field" id="pfKind">${['ollama', 'llamacpp', 'openai', 'opencode'].map(k => `<option ${p.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div><div class="form-row"><label>TRANSPORT</label><select class="field" id="pfTransport">${['http', 'https', 'uds'].map(t => `<option ${p.transport === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div><div class="form-row"><label>TIMEOUT (MS)</label><input class="field" id="pfTimeout" type="number" value="${p.timeout || 600000}"></div><div class="form-row full"><label>BASE URL</label><input class="field mono" id="pfUrl" value="${esc(p.url)}"></div><div class="form-row full"><label>NOTES</label><input class="field" id="pfNotes" value="${esc(p.notes)}"></div><div class="form-row full"><label><input type="checkbox" id="pfEnabled" ${p.enabled ? 'checked' : ''}> Enabled</label></div></div><p class="sub" style="margin-top:12px">Writes to the gateway database through POST/PATCH /admin/providers.</p>`,
+                [{ label: id ? 'Save provider' : 'Create provider', cls: 'green', fn: () => saveProvider(id) }]);
+        }
+
+        async function saveProvider(id) {
+            const payload = {
+                kind: $('#pfKind').value, transport: $('#pfTransport').value,
+                base_url: $('#pfUrl').value.trim(), timeout_ms: Number($('#pfTimeout').value) || 600000,
+                notes: $('#pfNotes').value.trim(), enabled: $('#pfEnabled').checked
+            };
+            if (!payload.base_url) { toast('Base URL is required'); return }
+            try {
+                if (id) await api('/admin/providers/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify(payload) });
+                else await api('/admin/providers', { method: 'POST', body: JSON.stringify({ ...payload, id: $('#pfId').value.trim() || undefined }) });
+                closeModal(); toast('Provider saved'); await loadProviders(); await loadModels();
+            } catch (e) { toast('Save failed: ' + e.message) }
+        }
+
+        function renderRuntime() {
+            const rows = [];
+            for (const entry of runtime) {
+                if (entry.kind === 'ollama') {
+                    const list = entry.loaded_models || [];
+                    for (const m of list) rows.push({
+                        model: m.model, provider: entry.id,
+                        detail: [m.size_bytes ? Math.round(m.size_bytes / 1024 / 1024) + ' MiB' : null, m.expires_at ? 'until ' + clock(m.expires_at) : null].filter(Boolean).join(' · '),
+                        state: 'Loaded in RAM', reachable: entry.reachable, loaded: true
+                    });
+                    if (!list.length) rows.push({ model: '—', provider: entry.id, detail: '', state: entry.reachable ? 'Reachable, nothing loaded' : 'Unreachable (HTTP ' + entry.status + ')', reachable: entry.reachable, loaded: false });
+                } else if (entry.kind === 'llamacpp') {
+                    rows.push({
+                        model: entry.model_alias || entry.model_path || '—', provider: entry.id,
+                        detail: [entry.quantization, entry.n_ctx ? 'ctx ' + entry.n_ctx : null, entry.n_slots ? entry.n_slots + ' slot' : null, entry.build_info].filter(Boolean).join(' · '),
+                        state: entry.reachable ? 'Serving (mmap)' : 'Unreachable (HTTP ' + entry.status + ')',
+                        reachable: entry.reachable, loaded: entry.reachable
+                    });
+                } else {
+                    rows.push({ model: (entry.models || []).length + ' declared', provider: entry.id, detail: entry.transport || '', state: entry.reachable ? 'Reachable' : 'Unreachable (HTTP ' + entry.status + ')', reachable: entry.reachable, loaded: false });
+                }
+            }
+            $('#loadedCount').textContent = loaded.size;
+            const reachable = runtime.filter(r => r.reachable).length;
+            $('#runtimeState').textContent = runtime.length ? reachable + '/' + runtime.length + ' reachable' : '—';
+            $('#runtimeState').className = 'tag ' + (reachable === runtime.length && runtime.length ? 'green' : runtime.length ? 'amber' : '');
+            $('#runtimeLastRead').textContent = new Date().toLocaleTimeString();
+            if (state.system && state.system.logs) {
+                $('#runtimeLogDir').textContent = state.system.logs.dir || '—';
+                $('#dashLogDir').textContent = state.system.logs.dir || '—';
+            }
+            $('#runtimeTable').innerHTML = rows.map(r => `<tr><td><div class="item-name mono">${esc(r.model)}</div><div class="item-sub mono">${esc(r.detail || '')}</div></td><td>${esc(r.provider)}</td><td><span class="tag ${r.reachable ? 'green' : 'red'}">${esc(r.state)}</span></td><td><div class="row-actions">${r.loaded && r.model && r.model !== '—' ? `<button class="btn small danger" data-runtime-unload="${esc(r.provider + '/' + r.model)}">Unload</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="4"><div class="empty"><strong>No runtime data</strong><p>GET /admin/runtime returned no providers.</p></div></td></tr>';
+            $$('[data-runtime-unload]').forEach(b => b.onclick = () => toggleModel(b.dataset.runtimeUnload));
+        }
+
+        // Per-model numbers come from GET /admin/model-stats, which groups
+        // request_logs by the provider+model pair that actually answered. The
+        // catalogue is merged in so a model with zero traffic still shows as a
+        // row ("0") instead of disappearing and looking like a bug.
+        function renderModelStats() {
+            const byId = new Map(modelStats.map(r => [r.full_id, r]));
+            const known = new Set(models.map(m => m.id));
+            const rows = models.map(m => ({ id: m.id, ...(byId.get(m.id) || { calls: 0, errors: 0, avg_ms: null, max_ms: null, prompt_tokens: 0, completion_tokens: 0, last_ts: null }) }));
+            for (const r of modelStats) if (!rows.some(x => x.id === r.full_id)) rows.push({ id: r.full_id, ...r });
+            rows.sort((a, b) => (b.calls || 0) - (a.calls || 0));
+            $('#modelStatsTable').innerHTML = rows.map(r => {
+                const tokens = (r.prompt_tokens || 0) + (r.completion_tokens || 0);
+                return `<tr>
+                    <td><div class="item-name mono">${esc(r.id)}</div><div class="item-sub">${known.has(r.id) ? (r.calls ? 'answered ' + num(r.calls) + ' request(s)' : 'no traffic in this window') : 'historical · no longer in the catalogue'}</div></td>
+                    <td class="mono">${num(r.calls)}${r.aborted ? `<div class="item-sub">${num(r.aborted)} aborted</div>` : ''}</td>
+                    <td>${r.errors ? `<span class="tag red" title="HTTP >= 400, client aborts excluded">${num(r.errors)}</span>` : '<span class="tag green">0</span>'}</td>
+                    <td class="mono">${r.avg_ms === null ? '—' : ms(r.avg_ms)}</td>
+                    <td class="mono">${r.max_ms === null ? '—' : ms(r.max_ms)}</td>
+                    <td class="mono">${tokens ? num(tokens) : '—'}<div class="item-sub">${num(r.prompt_tokens || 0)} in · ${num(r.completion_tokens || 0)} out</div></td>
+                    <td>${r.last_ts ? esc(rel(r.last_ts)) : '—'}<div class="item-sub mono">${r.last_ts ? esc(clock(r.last_ts)) : ''}</div></td>
+                    <td><div class="row-actions"><button class="btn small" data-model-test="${esc(r.id)}">Test</button><button class="btn small" data-model-log="${esc(r.id)}">Logs</button></div></td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="8"><div class="empty">No models configured.</div></td></tr>';
+            const calls = modelStats.reduce((sum, r) => sum + (r.calls || 0), 0);
+            const active = modelStats.filter(r => (r.calls || 0) > 0).length;
+            const days = Math.round(state.modelStatsWindow / 86400000);
+            const windowLabel = state.modelStatsWindow >= 86400000 ? (days === 1 ? '24 h' : days + ' days') : Math.round(state.modelStatsWindow / 60000) + ' min';
+            $('#modelStatsSummary').textContent = `${num(calls)} request(s) across ${active} model(s) · ${windowLabel} window · latency measured by the gateway`;
+            $$('[data-model-test]').forEach(b => b.onclick = () => {
+                go('chat');
+                if ($('#chatModel')) $('#chatModel').value = b.dataset.modelTest;
+                $('#chatPrompt').focus();
+            });
+            $$('[data-model-log]').forEach(b => b.onclick = () => {
+                go('logs');
+                $('#logSearch').value = b.dataset.modelLog;
+                renderLogs();
+            });
+        }
+
+        // Tail of a real file under server/logs/. The gateway reads at most the
+        // last 512 KiB, so a multi-megabyte log never lands in the browser.
+        function renderFileLog() {
+            const body = state.logTail;
+            const table = $('#fileLogTable');
+            if (!table) return;
+            if (!body) { table.innerHTML = '<tr><td colspan="2"><div class="empty">Choose a file and press Tail.</div></td></tr>'; return; }
+            $('#logFilePath').textContent = body.path || '—';
+            $('#logFileMeta').textContent = body.missing
+                ? 'File does not exist yet — it is created on the first matching event.'
+                : `${(body.bytes / 1024).toFixed(1)} KiB · modified ${body.mtime ? new Date(body.mtime).toLocaleString() : '—'} · showing last ${(body.lines || []).length} line(s)`;
+            const lines = body.lines || [];
+            table.innerHTML = lines.map((raw, i) => {
+                let parsed = null; try { parsed = JSON.parse(raw) } catch { }
+                const status = parsed && typeof parsed.status === 'number' ? parsed.status : null;
+                const level = parsed && parsed.level ? parsed.level : null;
+                const tone = status !== null ? (status < 400 ? 'green' : 'red') : level === 'error' ? 'red' : level === 'warn' ? 'amber' : '';
+                const label = status !== null ? 'HTTP ' + status : level ? level.toUpperCase() : '';
+                const summary = parsed && parsed.event === 'http.request'
+                    ? `${parsed.method} ${parsed.path} · ${parsed.duration_ms} ms · req ${String(parsed.request_id || '—').slice(0, 8)} · ${parsed.provider_id || '—'}/${parsed.model_id || '—'}`
+                    : parsed && parsed.event
+                        ? `${parsed.event}${parsed.message ? ' · ' + parsed.message : ''}${parsed.requestId ? ' · req ' + String(parsed.requestId).slice(0, 8) : ''}`
+                        : '';
+                return `<tr><td class="mono" style="color:#78858b;vertical-align:top">${i + 1}</td><td style="vertical-align:top"><div style="display:flex;gap:6px;align-items:center;margin-bottom:3px">${label ? `<span class="tag ${tone}">${esc(label)}</span>` : ''}${summary ? `<span class="item-sub" style="margin:0">${esc(summary)}</span>` : ''}</div><div class="mono" style="font-size:10px;color:#9aa6ac;white-space:pre-wrap;word-break:break-all" title="${esc(raw)}">${esc(raw.length > 600 ? raw.slice(0, 600) + '…' : raw)}</div></td></tr>`;
+            }).join('') || '<tr><td colspan="2"><div class="empty">File is empty.</div></td></tr>';
+        }
+
+        function renderLogs() {
+            const q = ($('#logSearch')?.value || '').toLowerCase();
+            const list = requests.filter(r => [r.request_id, r.model_id, r.provider_id, (r.provider_id || '') + '/' + (r.model_id || ''), String(r.status), r.error_code].join(' ').toLowerCase().includes(q));
+            $('#logsTable').innerHTML = list.map(r => {
+                const ok = r.status < 400;
+                const route = '/v1/chat/completions' + (r.stream ? ' · stream' : '');
+                return `<tr><td class="mono">${esc(clock(r.ts))}</td><td class="mono">${esc(r.request_id.slice(0, 12))}</td><td class="mono">${esc((r.provider_id || '?') + '/' + (r.model_id || '?'))}</td><td class="mono">${esc(route)}</td><td>${esc(ms(r.duration_ms))}</td><td><span class="tag ${ok ? 'green' : 'red'}">${esc(r.status)}${r.error_code ? ' · ' + esc(r.error_code) : ''}</span></td><td><button class="btn small" data-log="${esc(r.request_id)}">Inspect</button></td></tr>`;
+            }).join('') || '<tr><td colspan="7"><div class="empty">No request rows yet. Call /v1/chat/completions and refresh.</div></td></tr>';
+            $$('[data-log]').forEach(b => b.onclick = () => {
+                const r = requests.find(x => x.request_id === b.dataset.log); if (!r) return;
+                openModal('Request details', `<div class="detail-grid"><div class="detail-cell" style="grid-column:span 2"><div class="k">REQUEST ID</div><div class="v mono">${esc(r.request_id)}</div></div><div class="detail-cell"><div class="k">STATUS</div><div class="v">${esc(r.status)}${r.error_code ? ' · ' + esc(r.error_code) : ''}</div></div><div class="detail-cell"><div class="k">PROVIDER</div><div class="v">${esc(r.provider_id || '—')}</div></div><div class="detail-cell"><div class="k">MODEL</div><div class="v mono">${esc(r.model_id || '—')}</div></div><div class="detail-cell"><div class="k">STREAM</div><div class="v">${r.stream ? 'yes' : 'no'}</div></div><div class="detail-cell"><div class="k">DURATION</div><div class="v">${esc(ms(r.duration_ms))}</div></div><div class="detail-cell"><div class="k">TTFB</div><div class="v">${esc(ms(r.ttfb_ms))}</div></div><div class="detail-cell"><div class="k">CHUNKS</div><div class="v">${esc(r.chunk_count ?? '—')}</div></div><div class="detail-cell"><div class="k">PROMPT TOKENS</div><div class="v">${esc(r.prompt_tokens ?? '—')}</div></div><div class="detail-cell"><div class="k">COMPLETION TOKENS</div><div class="v">${esc(r.completion_tokens ?? '—')}</div></div><div class="detail-cell"><div class="k">SESSION</div><div class="v mono">${esc(r.session_id || '—')}</div></div><div class="detail-cell"><div class="k">TIME</div><div class="v">${esc(r.ts)}</div></div></div>`);
+            });
+        }
+
+        function renderSessions() {
+            $('#sessionsTable').innerHTML = sessions.map(s => `<tr><td class="mono">${esc(s.id.slice(0, 12))}</td><td class="mono">${esc(s.remote_addr || '—')}</td><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(s.user_agent || '')}">${esc(s.user_agent || '—')}</td><td>${esc(clock(s.opened_at))}</td><td>${s.closed_at ? '<span class="tag">Closed</span>' : '<span class="tag green"><span class="dot"></span> Open</span>'}<div class="item-sub">${esc(s.frames)} frames${s.last_sent_at ? ' · ' + esc(rel(s.last_sent_at)) : ''}</div></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty">No admin sessions recorded.</div></td></tr>';
+        }
+
+        function renderActivity() {
+            const rows = requests.slice(0, 50).map(r => {
+                const ok = r.status < 400;
+                return [ok ? 'Request completed' : 'Request failed', (r.provider_id || '?') + '/' + (r.model_id || '?'), 'HTTP ' + r.status + (r.error_code ? ' · ' + r.error_code : '') + ' · ' + ms(r.duration_ms), rel(r.ts), ok ? 'Success' : 'Error'];
+            });
+            $('#activityTable').innerHTML = rows.map(r => `<tr><td>${esc(r[0])}</td><td class="mono">${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td><td><span class="tag ${r[4] === 'Success' ? 'green' : 'red'}">${esc(r[4])}</span></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty">No activity yet.</div></td></tr>';
+        }
+
+        function renderDashboard() {
+            const totals = (state.metrics && state.metrics.totals) || null;
+            $('#statModels').textContent = models.filter(m => m.providerEnabled).length;
+            $('#statProviders').innerHTML = providers.filter(p => p.enabled).length + ' <span style="font-size:10px;color:#78858b;font-weight:500">/ ' + providers.length + '</span>';
+            $('#statRequests').textContent = totals ? num(totals.calls) : '—';
+            $('#statRequestsNote').textContent = totals ? 'Last hour · ' + num(totals.errors) + ' errors · ' + num(totals.aborted) + ' aborted' : 'Waiting for gateway…';
+            $('#lastUpdate').textContent = state.lastUpdate ? state.lastUpdate.toLocaleTimeString() : 'never';
+            const logDir = state.system && state.system.logs ? state.system.logs.dir : '';
+            if (logDir) {
+                $('#dashLogDir').textContent = logDir;
+                if ($('#runtimeLogDir')) $('#runtimeLogDir').textContent = logDir;
+            }
+            // The card says 1h, so read the 1h metrics, not the Runtime page's
+            // selectable window; otherwise a 24h selection would quietly
+            // relabel itself as an hour.
+            const top = ((state.metrics && state.metrics.models) || []).slice().sort((a, b) => (b.calls || 0) - (a.calls || 0))[0];
+            $('#dashTopModel').textContent = top && top.calls
+                ? top.provider_id + '/' + top.model_id + ' · ' + num(top.calls) + ' req · ' + ms(top.avg_ms)
+                : 'no traffic in the last hour';
+            const recent = requests.slice(0, 5).map(r => {
+                const ok = r.status < 400;
+                return `<tr><td>${ok ? 'Request completed' : 'Request failed'}</td><td class="mono">${esc((r.provider_id || '?') + '/' + (r.model_id || '?'))}</td><td><span class="tag ${ok ? 'green' : 'red'}">${esc(r.status)}</span></td><td>${esc(rel(r.ts))}</td></tr>`;
+            }).join('');
+            $('#recentActivity').innerHTML = recent || '<tr><td colspan="4"><div class="empty">No requests recorded yet.</div></td></tr>';
+        }
+
+        function renderMetrics() {
+            const m = state.metrics;
+            const totals = (m && m.totals) || null;
+            const calls = totals ? totals.calls : 0;
+            const errors = totals ? totals.errors : 0;
+            const tokens = totals ? (totals.prompt_tokens + totals.completion_tokens) : 0;
+            $('#statTotalRequests').textContent = totals ? num(calls) : '—';
+            $('#statTokens').textContent = totals ? (tokens >= 1000 ? (tokens / 1000).toFixed(1) + 'K' : num(tokens)) : '—';
+            $('#statErrorRate').textContent = totals && calls ? ((errors / calls) * 100).toFixed(1) + '%' : '0.0%';
+            $('#statAvgLatency').innerHTML = totals && totals.avg_ms !== null ? totals.avg_ms + '<span style="font-size:11px;color:#89949b"> ms</span>' : '—';
+            $('#statWindowNote').textContent = m ? 'Window: ' + Math.round(m.window_ms / 60000) + ' min' : 'Window: last hour';
+            const buckets = (m && m.buckets ? [...m.buckets].reverse() : []);
+            const peak = Math.max(1, ...buckets.map(b => b.calls));
+            $('#chartBars').innerHTML = buckets.length
+                ? buckets.map(b => `<div title="${esc(b.minute)} · ${b.calls} calls · ${b.errors} errors" style="flex:1;height:${Math.max(4, Math.round((b.calls / peak) * 100))}%;background:linear-gradient(180deg,${b.errors ? '#e8b455' : '#20c96b'},${b.errors ? '#5c4a1e' : '#17492c'});border-radius:4px 4px 0 0;opacity:.85"></div>`).join('')
+                : '<div class="empty" style="margin:auto">No requests in this window.</div>';
+        }
+
+        // --------------------------------------------------- users and roles ---
+        // The gateway API has no user or role endpoints. These two views stay
+        // local-only on purpose; labelling them keeps the dashboard honest.
+        const userRecords = [{ name: 'Admin Operator', email: 'admin@local.test', role: 'Administrator', status: 'Active', last: 'Now' }];
+        const roleRecords = [{ name: 'Administrator', desc: 'Full access (local placeholder)', perms: [1, 1, 1, 1, 1] }, { name: 'Operator', desc: 'Operate models and providers', perms: [1, 1, 1, 0, 0] }, { name: 'Viewer', desc: 'Read-only dashboard access', perms: [1, 0, 0, 0, 0] }];
+        function renderUsers() { const q = ($('#userSearch')?.value || '').toLowerCase(), f = $('#userStatus')?.value || 'all', list = userRecords.filter(u => (u.name + ' ' + u.email + ' ' + u.role).toLowerCase().includes(q) && (f === 'all' || u.status === f)); $('#usersTable').innerHTML = list.map(u => `<tr><td><div class="item-name">${esc(u.name)}</div><div class="item-sub">${esc(u.email)}</div></td><td>${esc(u.role)}</td><td><span class="tag ${u.status === 'Active' ? 'green' : u.status === 'Disabled' ? 'red' : 'amber'}">${esc(u.status)}</span></td><td>${esc(u.last)}</td><td><div class="admin-table-actions"><button class="btn small" data-user-edit="${userRecords.indexOf(u)}">Edit</button></div></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty">No users match this filter.</div></td></tr>'; $('#userCount').textContent = list.length + ' users'; $$('[data-user-edit]').forEach(b => b.onclick = () => userForm(Number(b.dataset.userEdit))) }
+        function userForm(index) { const u = index >= 0 ? userRecords[index] : { name: '', email: '', role: 'Viewer', status: 'Invited', last: 'Never' }; openModal(index >= 0 ? 'Edit user' : 'Add user', `<div class="form-grid"><div class="form-row"><label>DISPLAY NAME</label><input class="field" id="ufName" value="${esc(u.name)}"></div><div class="form-row"><label>EMAIL</label><input class="field" id="ufEmail" type="email" value="${esc(u.email)}"></div><div class="form-row"><label>ROLE</label><select class="field" id="ufRole">${['Administrator', 'Operator', 'Viewer'].map(r => `<option ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div><div class="form-row"><label>STATUS</label><select class="field" id="ufStatus">${['Active', 'Invited', 'Disabled'].map(r => `<option ${u.status === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div></div><p class="sub" style="margin-top:12px">The gateway API has no user endpoints; this stays browser-local.</p>`, [{ label: 'Save locally', cls: 'green', fn: () => { const data = { ...u, name: $('#ufName').value.trim(), email: $('#ufEmail').value.trim(), role: $('#ufRole').value, status: $('#ufStatus').value }; if (!data.name || !data.email) { toast('Name and email are required'); return } if (index >= 0) userRecords[index] = data; else userRecords.push(data); closeModal(); renderUsers(); toast('Saved in this browser only') } }]) }
+        function renderRoles() { $('#rolesTable').innerHTML = roleRecords.map((r, i) => `<tr><td><div class="item-name">${esc(r.name)}</div></td><td>${esc(r.desc)}</td>${r.perms.map(v => `<td><span class="tag ${v ? 'green' : ''}">${v ? 'Allowed' : '—'}</span></td>`).join('')}<td><div class="admin-table-actions"><button class="btn small" data-role-edit="${i}">Edit</button></div></td></tr>`).join(''); $$('[data-role-edit]').forEach(b => b.onclick = () => roleForm(Number(b.dataset.roleEdit))) }
+        function roleForm(index) { const r = index >= 0 ? roleRecords[index] : { name: '', desc: '', perms: [1, 0, 0, 0, 0] }; openModal(index >= 0 ? 'Edit role' : 'Add role', `<div class="form-grid"><div class="form-row"><label>ROLE NAME</label><input class="field" id="rfName" value="${esc(r.name)}"></div><div class="form-row"><label>DESCRIPTION</label><input class="field" id="rfDesc" value="${esc(r.desc)}"></div>${['View dashboard', 'Manage models', 'Manage providers', 'Manage users', 'Settings'].map((p, i) => `<div class="form-row"><label><input type="checkbox" id="rfPerm${i}" ${r.perms[i] ? 'checked' : ''}> ${p}</label></div>`).join('')}</div><p class="sub" style="margin-top:12px">Browser-local placeholder; the backend does not enforce RBAC.</p>`, [{ label: 'Save locally', cls: 'green', fn: () => { const data = { name: $('#rfName').value.trim(), desc: $('#rfDesc').value.trim(), perms: [0, 1, 2, 3, 4].map(i => $('#rfPerm' + i).checked ? 1 : 0) }; if (!data.name) { toast('Role name is required'); return } if (index >= 0) roleRecords[index] = data; else roleRecords.push(data); closeModal(); renderRoles(); toast('Saved in this browser only') } }]) }
+
+        // ------------------------------------------------------------- chat ---
+        function populateChatModels() { const sel = $('#chatModel'); if (!sel) return; const old = sel.value; sel.innerHTML = models.map(m => `<option value="${esc(m.id)}">${esc(m.id)}</option>`).join('') || '<option value="">no models</option>'; if (models.some(m => m.id === old)) sel.value = old }
+        const chatMessages = [];
+        function paintChat() { const box = $('#chatTranscript'); box.innerHTML = chatMessages.length ? chatMessages.map(m => `<div class="chat-msg ${m.role === 'user' ? 'user' : 'assistant'}">${esc(m.content)}</div>`).join('') : '<div class="chat-empty"><strong>Ready to test a model</strong>Select a model, enter a prompt, and send it. The response will appear here.</div>'; box.scrollTop = box.scrollHeight }
+        async function sendChat() {
+            const prompt = $('#chatPrompt').value.trim(); if (!prompt) return;
+            const base = $('#chatBase').value.trim().replace(/\/$/, '');
+            const model = $('#chatModel').value;
+            if (!/^https?:\/\//i.test(base)) { toast('Enter a valid API base URL'); return }
+            chatMessages.push({ role: 'user', content: prompt });
+            $('#chatPrompt').value = ''; paintChat(); $('#chatSend').disabled = true; $('#chatStatus').textContent = 'Request in progress…';
+            metaChips('#chatMeta', []);
+            const waiting = { role: 'assistant', content: 'Waiting for model response…' };
+            chatMessages.push(waiting); paintChat();
+            try {
+                const token = $('#chatToken').value.trim();
+                const body = { model, messages: chatMessages.filter(m => m !== waiting).map(m => ({ role: m.role, content: m.content })), temperature: Math.max(0, Math.min(2, Number($('#chatTemperature').value) || 0)), max_tokens: Math.max(1, Number($('#chatMaxTokens').value) || 512) };
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers.Authorization = 'Bearer ' + token;
+                const started = performance.now();
+                const response = await fetch(base + '/chat/completions', { method: 'POST', headers, body: JSON.stringify(body) });
+                const elapsed = performance.now() - started;
+                const requestId = response.headers.get('x-request-id');
+                const errorCode = response.headers.get('x-error-code');
+                const raw = await response.text();
+                let data; try { data = JSON.parse(raw) } catch { data = { raw } }
+                if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + (data.error?.message || data.message || raw.slice(0, 500)));
+                const answer = data.choices?.[0]?.message?.content;
+                if (typeof answer !== 'string') throw new Error('Response did not contain choices[0].message.content');
+                waiting.content = answer;
+                const tokens = data.usage?.total_tokens;
+                $('#chatStatus').textContent = 'Success · HTTP ' + response.status + ' · ' + Math.round(elapsed) + ' ms' + (tokens ? ' · ' + tokens + ' tokens' : '');
+                metaChips('#chatMeta', [
+                    { label: 'HTTP ' + response.status, tone: 'green' },
+                    { label: Math.round(elapsed) + ' ms' },
+                    { label: model },
+                    tokens ? { label: num(tokens) + ' tokens' } : null,
+                    requestId ? { label: 'req ' + requestId.slice(0, 8) } : null
+                ]);
+                loadRequests().catch(() => { });
+                loadModelStats().catch(() => { });
+            } catch (e) {
+                waiting.content = 'Request failed: ' + e.message + '\n\nCheck that the gateway is running, the model ID is valid, and CORS/auth settings permit this browser request.';
+                $('#chatStatus').textContent = 'Request failed · see response';
+                metaChips('#chatMeta', [{ label: 'failed', tone: 'red' }, { label: model }]);
+            } finally { $('#chatSend').disabled = false; paintChat() }
+        }
+        $('#chatSend').onclick = sendChat;
+        $('#chatPrompt').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendChat() } });
+        $('#chatClear').onclick = () => { chatMessages.length = 0; paintChat(); metaChips('#chatMeta', []); $('#chatStatus').textContent = 'Conversation cleared' };
+        $('#chatExport').onclick = () => { const transcript = chatMessages.map(m => m.role.toUpperCase() + ': ' + m.content).join('\n\n'); if (!transcript) { toast('No messages to copy'); return } navigator.clipboard?.writeText(transcript).then(() => toast('Transcript copied')).catch(() => toast('Clipboard permission unavailable')) };
+
+        // ----------------------------------------------------------- modals ---
+        function openModal(title, body, actions = []) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = body; const foot = $('#modalFoot'); foot.innerHTML = '<button class="btn" id="modalCancel">Close</button>'; $('#modalCancel').onclick = closeModal; actions.forEach(a => { const b = document.createElement('button'); b.className = 'btn ' + (a.cls || ''); b.textContent = a.label; b.onclick = a.fn; foot.appendChild(b) }); $('#modalBackdrop').classList.add('open') }
+        function closeModal() { $('#modalBackdrop').classList.remove('open') }
+        $('#modalClose').onclick = closeModal; $('#modalCancel').onclick = closeModal;
+        $('#modalBackdrop').addEventListener('click', e => { if (e.target === $('#modalBackdrop')) closeModal() });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal() });
+
+        // ---------------------------------------------------------- wiring ---
+        $('#mobileMenu').onclick = () => $('#sidebar').classList.toggle('open');
+        $('#headerSettings').onclick = () => go('settings');
+        $('#headerRefresh').onclick = () => refreshAll();
+        $('#refreshAll').onclick = () => refreshAll();
+        $('#modelSearch').oninput = renderModels;
+        $('#modelProviderFilter').onchange = renderModels;
+        $('#modelStatusFilter').onchange = renderModels;
+        $('#providerSearch').oninput = renderProviders;
+        $('#providerFilter').onchange = renderProviders;
+        $('#logSearch').oninput = renderLogs;
+        $('#userSearch').oninput = renderUsers;
+        $('#userStatus').onchange = renderUsers;
+        $('#modelRefresh').onclick = () => loadModels().then(() => toast('Catalogue refreshed')).catch(e => toast('Refresh failed: ' + e.message));
+        $('#loadModelTop').onclick = () => { go('models'); openModal('Load model', `<div class="form-row"><label>SELECT MODEL</label><select class="field" id="loadChoice">${models.map(m => `<option value="${esc(m.id)}">${esc(m.id)}</option>`).join('')}</select></div><p class="sub" style="margin-top:10px">POST /admin/models/load</p>`, [{ label: 'Load selected', cls: 'green', fn: () => { toggleModel($('#loadChoice').value); closeModal() } }]) };
+        $('#addProviderBtn').onclick = () => providerForm();
+        $('#schemaBtn').onclick = () => api('/admin/providers/schema').then(schema => openModal('Provider schema', `<pre class="mono" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111517;border:1px solid #30363a;padding:12px;border-radius:6px;color:#b8e7c7">${esc(JSON.stringify(schema, null, 2))}</pre>`)).catch(e => toast('Schema failed: ' + e.message));
+        $('#syncAllBtn').onclick = async () => { try { const r = await api('/admin/sync', { method: 'POST' }); toast('Sync: ' + (r.data || []).filter(x => x.ok).length + '/' + (r.data || []).length + ' providers · ' + r.models + ' models'); await loadProviders(); await loadModels() } catch (e) { toast('Sync failed: ' + e.message) } };
+        $('#runtimeRefresh').onclick = () => loadRuntime().then(() => toast('Runtime refreshed')).catch(e => toast('Refresh failed: ' + e.message));
+        $('#metricsRefresh').onclick = () => loadMetrics().then(() => toast('Metrics refreshed')).catch(e => toast('Refresh failed: ' + e.message));
+        $('#logsRefresh').onclick = () => Promise.allSettled([loadRequests(), loadLogFile()]).then(() => toast('Request log and file tail refreshed'));
+        $('#logFile').onchange = () => loadLogFile().catch(e => toast('Tail failed: ' + e.message));
+        $('#logFileRefresh').onclick = () => loadLogFile().then(() => toast('Tail refreshed')).catch(e => toast('Tail failed: ' + e.message));
+        $('#modelStatsWindow').onchange = () => {
+            state.modelStatsWindow = Number($('#modelStatsWindow').value) || 3600000;
+            localStorage.setItem('zg.statsWindow', String(state.modelStatsWindow));
+            loadModelStats().then(() => toast('Model stats window updated')).catch(e => toast('Stats failed: ' + e.message));
+        };
+        $('#sessionsRefresh').onclick = () => loadSessions().then(() => toast('Sessions refreshed')).catch(e => toast('Refresh failed: ' + e.message));
+        $('#activityRefresh').onclick = () => loadRequests().then(() => toast('Activity refreshed')).catch(e => toast('Refresh failed: ' + e.message));
+        $('#addUserBtn').onclick = () => userForm(-1);
+        $('#addRoleBtn').onclick = () => roleForm(-1);
+
+        // --------------------------------------------------------- settings ---
+        $('#baseUrl').value = state.base;
+        $('#adminToken').value = state.token;
+        $('#authMode').value = state.authMode === 'bearer' ? 'Authorization: Bearer' : state.authMode === 'x-admin-token' ? 'x-admin-token' : 'No auth (local dev only)';
+        $('#timeout').value = String(state.timeout);
+        $('#chatBase').value = state.base.replace(/\/$/, '') + '/v1';
+        if ($('#modelStatsWindow')) $('#modelStatsWindow').value = String(state.modelStatsWindow);
+        if ($('#logFile')) $('#logFile').value = state.logName;
+
+        function readAuthMode() {
+            const value = $('#authMode').value;
+            return value === 'x-admin-token' ? 'x-admin-token' : value === 'No auth (local dev only)' ? 'none' : 'bearer';
+        }
+
+        $('#saveSettings').onclick = () => {
+            const base = $('#baseUrl').value.trim().replace(/\/$/, '');
+            if (!/^https?:\/\//i.test(base)) { toast('Enter a valid http(s) base URL'); return }
+            state.base = base;
+            state.token = $('#adminToken').value.trim();
+            state.authMode = readAuthMode();
+            state.timeout = Math.max(1000, Number($('#timeout').value) || 15000);
+            localStorage.setItem('zg.base', state.base);
+            localStorage.setItem('zg.auth', state.authMode);
+            localStorage.setItem('zg.timeout', String(state.timeout));
+            sessionStorage.setItem('zg.token', state.token);
+            $('#chatBase').value = state.base + '/v1';
+            if (state.ws) { try { state.ws.close() } catch { } state.ws = null }
+            toast('Connection settings saved');
+            refreshAll();
+            connectWs();
+        };
+        $('#resetSettings').onclick = () => {
+            $('#baseUrl').value = location.protocol.startsWith('http') ? location.origin : 'http://127.0.0.1:5252';
+            $('#adminToken').value = '';
+            $('#authMode').selectedIndex = 0;
+            $('#timeout').value = '15000';
+            toast('Form reset — press Save to apply');
+        };
+        $('#testConnection').onclick = async () => {
+            const base = $('#baseUrl').value.trim().replace(/\/$/, '');
+            try {
+                const response = await fetch(base + '/health', { headers: authHeaders() });
+                const body = await response.json();
+                toast('HTTP ' + response.status + ' · ' + (body.status || 'unknown') + ' · ' + (body.models ?? '?') + ' models');
+            } catch (e) { toast('Connection failed: ' + e.message) }
+        };
+
+        // ---------------------------------------------------------- console ---
+        $('#apiSend').onclick = async () => {
+            const method = $('#apiMethod').value;
+            const path = $('#apiPath').value.trim();
+            const body = $('#apiBody').value.trim();
+            if (!path) { toast('API path is required'); return }
+            let requestedModel = null;
+            if (body) { try { const parsedBody = JSON.parse(body); requestedModel = parsedBody.model || null } catch { } }
+            metaChips('#apiMeta', []);
+            $('#apiOutput').textContent = 'Requesting ' + method + ' ' + path + ' …';
+            try {
+                const started = performance.now();
+                const response = await fetch(state.base.replace(/\/$/, '') + path, { method, headers: { ...authHeaders(), ...(body ? { 'content-type': 'application/json' } : {}) }, body: body || undefined });
+                const elapsed = performance.now() - started;
+                const requestId = response.headers.get('x-request-id');
+                const errorCode = response.headers.get('x-error-code');
+                const text = await response.text();
+                let parsed; try { parsed = JSON.parse(text) } catch { parsed = text }
+                const usage = parsed && typeof parsed === 'object' ? parsed.usage : null;
+                const answered = parsed && typeof parsed === 'object' && parsed.model ? parsed.model : requestedModel;
+                metaChips('#apiMeta', [
+                    { label: 'HTTP ' + response.status, tone: response.ok ? 'green' : 'red' },
+                    { label: Math.round(elapsed) + ' ms' },
+                    answered ? { label: 'model ' + answered } : null,
+                    usage && usage.total_tokens ? { label: num(usage.total_tokens) + ' tokens' } : null,
+                    requestId ? { label: 'req ' + requestId.slice(0, 8) } : null,
+                    errorCode ? { label: errorCode, tone: 'red' } : null
+                ]);
+                $('#apiOutput').textContent = [
+                    'HTTP ' + response.status + ' · ' + Math.round(elapsed) + ' ms' + (requestId ? ' · req ' + requestId : '') + (errorCode ? ' · ' + errorCode : ''),
+                    '',
+                    typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2)
+                ].join('\n');
+                // A real inference call just changed the per-model numbers; pull
+                // them now instead of waiting for the 15 s refresh tick.
+                if (method === 'POST' && path.startsWith('/v1/')) {
+                    loadRequests().catch(() => { });
+                    loadModelStats().catch(() => { });
+                }
+            } catch (e) {
+                metaChips('#apiMeta', [{ label: 'network error', tone: 'red' }, requestedModel ? { label: requestedModel } : null]);
+                $('#apiOutput').textContent = 'Request failed: ' + e.message;
+            }
+        };
+        $('#apiClear').onclick = () => { $('#apiBody').value = ''; $('#apiMeta').innerHTML = ''; $('#apiOutput').textContent = 'No request executed.' };
+
+        // ------------------------------------------------------------- boot ---
+        function boot() {
+            renderModels(); renderProviders(); renderRuntime(); renderModelStats(); renderFileLog(); renderLogs(); renderSessions(); renderActivity(); renderUsers(); renderRoles(); renderMetrics(); populateChatModels();
+            refreshAll(true);
+            connectWs();
+            // WS carries metrics; these are cheap HTTP refreshes for the tables
+            // that do not stream. They never open a socket, so no session churn.
+            setInterval(() => { if (!document.hidden) refreshAll(true) }, 15000);
+        }
+        boot();
+</script>
+</body>
+
+</html>

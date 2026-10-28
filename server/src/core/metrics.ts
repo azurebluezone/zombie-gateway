@@ -64,17 +64,19 @@ function totalsFor(since: string, providerId?: string, modelId?: string): Window
     `SELECT COUNT(*) AS calls,
             SUM(CASE WHEN status >= 400 AND status <> 499 THEN 1 ELSE 0 END) AS errors,
             SUM(CASE WHEN status = 499 THEN 1 ELSE 0 END) AS aborted,
-            AVG(duration_ms) AS avg_ms,
-            MAX(duration_ms) AS max_ms,
-            AVG(ttfb_ms) AS avg_ttfb_ms,
+            AVG(CASE WHEN status <> 499 THEN duration_ms END) AS avg_ms,
+            MAX(CASE WHEN status <> 499 THEN duration_ms END) AS max_ms,
+            AVG(CASE WHEN status <> 499 THEN ttfb_ms END) AS avg_ttfb_ms,
             SUM(COALESCE(prompt_tokens, 0)) AS prompt_tokens,
             SUM(COALESCE(completion_tokens, 0)) AS completion_tokens
      FROM request_logs WHERE ${where}`,
     ...params,
   );
 
+  // Same rule as the aggregates: a 499 measures how long the caller waited,
+  // not how fast the model answered, so it must not move p95 either.
   const durations = queryAll<PercentileRow>(
-    `SELECT duration_ms FROM request_logs WHERE ${where} ORDER BY id DESC LIMIT 500`,
+    `SELECT duration_ms FROM request_logs WHERE ${where} AND status <> 499 ORDER BY id DESC LIMIT 500`,
     ...params,
   ).map((entry) => entry.duration_ms);
 
@@ -199,5 +201,52 @@ export function recentRequests(limit: number, providerId?: string): RequestRow[]
             duration_ms, ttfb_ms, chunk_count, prompt_tokens, completion_tokens, session_id
      FROM request_logs ORDER BY id DESC LIMIT ?`,
     capped,
+  );
+}
+
+export interface ModelRuntimeStat {
+  provider_id: string;
+  model_id: string;
+  calls: number;
+  errors: number;
+  aborted: number;
+  avg_ms: number | null;
+  max_ms: number | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+  last_ts: string | null;
+}
+
+/**
+ * Per-model runtime numbers for the admin panel.
+ *
+ * Same source as every other metric (request_logs), grouped by the pair that
+ * actually answered the request. A model that never served a request in the
+ * window has no row here — the caller merges by catalogue id, so "no traffic"
+ * stays distinguishable from "zero milliseconds".
+ */
+export function modelRuntimeStats(windowMs: number): ModelRuntimeStat[] {
+  const clamped = Math.min(Math.max(windowMs, 60_000), 7 * 24 * 60 * 60 * 1000);
+  const since = new Date(Date.now() - clamped).toISOString();
+  return queryAll<ModelRuntimeStat>(
+    // 499 means the client hung up; it is not a model error and its wall time
+    // measures how long the caller waited, not how fast the model answered.
+    // Counting it as an error or folding it into avg/max made one aborted call
+    // look like a two-minute model turn.
+    `SELECT provider_id,
+            model_id,
+            COUNT(*) AS calls,
+            SUM(CASE WHEN status >= 400 AND status <> 499 THEN 1 ELSE 0 END) AS errors,
+            SUM(CASE WHEN status = 499 THEN 1 ELSE 0 END) AS aborted,
+            AVG(CASE WHEN status <> 499 THEN duration_ms END) AS avg_ms,
+            MAX(CASE WHEN status <> 499 THEN duration_ms END) AS max_ms,
+            SUM(COALESCE(prompt_tokens, 0)) AS prompt_tokens,
+            SUM(COALESCE(completion_tokens, 0)) AS completion_tokens,
+            MAX(ts) AS last_ts
+     FROM request_logs
+     WHERE ts >= ? AND provider_id IS NOT NULL AND model_id IS NOT NULL
+     GROUP BY provider_id, model_id
+     ORDER BY calls DESC`,
+    since,
   );
 }

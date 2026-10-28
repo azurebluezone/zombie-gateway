@@ -49,6 +49,11 @@ bug in this document.
 | TLS termination at the gateway | not implemented (see §10) |
 | Automatic tool-call loop (model → tool → model) | not implemented yet |
 
+**Live on 2026-10-28** (`/health` + `/v1/models` probe on this machine): gateway
+up, 2 providers / 2 models registered — `llamacpp/llama-3.2-1b-abliterated`
+(tools, 4096 ctx) and one Ollama model; `llama-server` running (pid-verified).
+Source published to [`github.com/azurebluezone/zombie-gateway`](https://github.com/azurebluezone/zombie-gateway).
+
 Full step-by-step record: [`docs/STEPS.md`](docs/STEPS.md). The llama.cpp run,
 including the exact build, commands and outputs, is in
 [`docs/LLAMACPP-LIVE.md`](docs/LLAMACPP-LIVE.md).
@@ -122,10 +127,10 @@ CP_OLLAMA_KIND=ollama
 CP_OLLAMA_BASE_URL=http://127.0.0.1:11434
 CP_OLLAMA_CAPS=tools,embeddings
 
-# llama.cpp over TCP
-CP_LLAMA_KIND=llamacpp
-CP_LLAMA_BASE_URL=http://127.0.0.1:8080
-CP_LLAMA_CAPS=tools
+# llama.cpp over TCP (server/scripts/llama-model.sh start)
+CP_LLAMACPP_KIND=llamacpp
+CP_LLAMACPP_BASE_URL=http://127.0.0.1:8080
+CP_LLAMACPP_CAPS=tools
 
 # llama.cpp over a Unix socket (no TCP handshake, socket-file permissions)
 CP_LLAMA_UDS_KIND=llamacpp
@@ -167,6 +172,50 @@ never reachable. Uncomment a group to add a provider.
 If you run a **modular** llama.cpp build (a `libllama-server-impl.so` next to the
 binary), start it with `LD_LIBRARY_PATH=<build>/bin`; that build does not set an
 rpath. A system package install does not need this.
+
+### Local llama.cpp model
+
+`server/scripts/llama-model.sh` is the single launcher for the local GGUF. It
+starts `llama-server` with `--load-mode mmap` (weights stay a memory-mapped file,
+not a heap copy), waits for `/health`, and writes every line the engine prints to
+`server/logs/llama-server.jsonl`.
+
+```bash
+server/scripts/llama-model.sh start      # or: systemctl --user start llama-model
+server/scripts/llama-model.sh status     # pid, n_ctx, rss, mmap yes/no
+server/scripts/llama-model.sh stop
+server/scripts/llama-model.sh logs 40
+```
+
+The same script backs `llama-model.service` (systemd --user, `Type=oneshot`,
+`RemainAfterExit=yes`), and `zombie-gateway.service` orders itself after it.
+`server/scripts/transport-check.mjs` then proves HTTP, SSE and UDS against the
+documented OpenAI and Anthropic shapes and correlates each response with
+`logs/access.jsonl`; it exits non-zero on the first broken shape.
+
+### MCP server
+
+`server/scripts/gateway-mcp.mjs` is a dependency-free stdio MCP server. It
+exposes the same observability the dashboard uses: `gateway_health`,
+`gateway_models`, `gateway_runtime`, `gateway_model_stats`, `gateway_logs`,
+`gateway_requests` and one `gateway_chat`. Point any MCP client at it; there is
+no port to open and no separate process to supervise.
+
+```jsonc
+{
+  "mcp": {
+    "servers": {
+      "zombie": {
+        "type": "local",
+        "command": ["node", "/path/to/server/scripts/gateway-mcp.mjs"],
+        "environment": { "GATEWAY_BASE_URL": "http://127.0.0.1:5252" }
+      }
+    }
+  }
+}
+```
+
+Setup, tool list, smoke test and limits: [`docs/MCP.md`](docs/MCP.md).
 
 ## 6. HTTP surface
 
@@ -215,7 +264,29 @@ Response headers on every inference route:
 | Upstream body stopped early | 502 `provider_stream_error`; mid-stream the same envelope arrives as one final `data:` frame, and no `[DONE]` follows |
 | Client left mid-stream | no error body; log `chat.client_aborted` / `messages.client_aborted` and `request_logs.status = 499`, counted as `aborted` in metrics, never as an error |
 
-### Admin (JSON only, same port)
+### Admin (same port, JSON + one HTML page)
+
+The dashboard is `GET /admin/ui` (also `/dashboard`; `/` redirects there). It is
+a static file, `server/public/admin.html`, that calls the admin API from the
+browser on the same origin — no CORS, no token in a query string, no sample
+data. Everything it shows comes from `/admin/system`, `/admin/providers`,
+`/admin/models`, `/admin/runtime`, `/admin/requests`, `/admin/sessions`,
+`/admin/metrics`, `/admin/model-stats` and `/admin/logs`, plus the
+`/admin/metrics/ws` socket (20 s client ping, 25 s server ping, reconnect
+backoff capped at 15 s).
+
+The Runtime page answers "which model answered, how many requests, how slow":
+one row per model with calls, errors, average and max latency, tokens in/out and
+the last request time. The Logs page tails any of the four files below in place.
+
+Every request, success or failure, appends one line to `server/logs/access.jsonl`
+(`GATEWAY_ACCESS_LOG`, rotated at 8 MiB). Lifecycle events stay in
+`server/logs/gateway.jsonl`, so request noise never buries them. The local
+llama.cpp engine adds `server/logs/llama-server.jsonl` (engine output) and
+`server/logs/llama-model.log` (supervisor). `/admin/system` reports the absolute
+directory under `logs`.
+
+### Admin auth and routes
 
 `GATEWAY_ADMIN_AUTH` is the single switch:
 
@@ -225,12 +296,13 @@ Response headers on every inference route:
 - unset — enforcement only when a token is configured.
 
 ```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5252/admin/ui   # dashboard
 curl -s http://127.0.0.1:5252/admin/routes                 # self-description
 curl -s http://127.0.0.1:5252/admin/system                 # identity, policy, counts
 curl -s http://127.0.0.1:5252/admin/providers/schema       # field spec + examples
 curl -s -X POST http://127.0.0.1:5252/admin/sync           # discover every provider
 curl -s -X POST http://127.0.0.1:5252/admin/models/load \
-  -H 'content-type: application/json' -d '{"model":"ollama/qwen2.5:1.5b"}'
+  -H 'content-type: application/json' -d '{"model":"ollama/qwen2.5:1.5b"}'  # any id from /v1/models
 ```
 
 Token via `Authorization: Bearer …`, `x-admin-token: …`, or `?token=` on the
@@ -319,6 +391,11 @@ server/
   scripts/
     setup.mjs           first run: .env, data dirs, engine probe (prestart)
     build.mjs           emit runtime to dist/ (tsc -p tsconfig.build.json)
+    llama-model.sh      start/stop/restart/status for the local GGUF (mmap)
+    transport-check.mjs HTTP + SSE + UDS conformance run against a live gateway
+    gateway-mcp.mjs     MCP stdio server: gateway health, models, stats, logs
+  logs/                 llama-server.jsonl, llama-model.log, gateway.jsonl,
+                        access.jsonl (all append-only, request ids correlate)
   tsconfig.build.json   emit config; tsconfig.json stays noEmit
   dist/                 build output (gitignored), mirrors src/
   tools/live-check.ts   real-engine check: boot, chat, stream, tool call,
@@ -329,7 +406,7 @@ server/
   test/                 node:test suites (sanitize, policy, integration)
   test/fixtures/        self-signed localhost cert for the HTTPS test only
 docs/                   install, clients/transport, admin, context, sanitize,
-                        policy, steps, release check, live check
+                        MCP, policy, steps, release check, live check
 ```
 
 ## 12. Tests

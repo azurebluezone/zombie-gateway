@@ -11,13 +11,15 @@
  *    the request log, so they cannot drift from reality.
  */
 
+import { closeSync, openSync, readSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AppContext } from "../core/chat.ts";
 import { fullModelId, listPublicModels, resolveModel, syncProvider } from "../core/catalog.ts";
 import { queryAll, queryOne } from "../core/db.ts";
 import { GatewayError } from "../core/errors.ts";
 import { logEvent } from "../core/logger.ts";
-import { collectMetrics, recentRequests } from "../core/metrics.ts";
+import { collectMetrics, modelRuntimeStats, recentRequests } from "../core/metrics.ts";
 import type { ProviderConfig } from "../config.ts";
 import { json, readJson } from "../core/respond.ts";
 import { providerSchema } from "./schema.ts";
@@ -55,6 +57,8 @@ const ROUTES: RouteDoc[] = [
   { method: "GET", path: "/admin/metrics", purpose: "Window aggregates: totals, per provider, per model, per minute.", query: { window_ms: "3600000" } },
   { method: "GET", path: "/admin/requests", purpose: "Most recent request log rows.", query: { limit: "20", provider: "id" } },
   { method: "GET", path: "/admin/sessions", purpose: "Admin panel sessions (one row per WebSocket handshake), newest first.", query: { limit: "50", open: "1" } },
+  { method: "GET", path: "/admin/model-stats", purpose: "Per-model runtime: calls, errors, avg/max latency, tokens, last request.", query: { window_ms: "3600000" } },
+  { method: "GET", path: "/admin/logs", purpose: "Tail one server log file. Whitelisted names only.", query: { file: "access|gateway|llama-server|llama-model", limit: "200" } },
   { method: "GET", path: "/admin/metrics/ws", purpose: "Realtime metrics over WebSocket (also /admin/ws). Text frames only; first frame is a snapshot." },
 ];
 
@@ -179,6 +183,46 @@ async function warm(
   };
 }
 
+/**
+ * Tail a log file without loading an 8 MiB file into memory: read at most the
+ * last 512 KiB, then keep the last `limit` complete lines. Only files named in
+ * the whitelist reach this function, so a query string cannot walk the disk.
+ */
+function tailLog(file: string, name: string, limit: number): Record<string, unknown> {
+  const WINDOW = 512 * 1024;
+  let size = 0;
+  let mtime: string | null = null;
+  try {
+    const stat = statSync(file);
+    size = stat.size;
+    mtime = stat.mtime.toISOString();
+  } catch {
+    return { object: "log.tail", file: name, path: file, bytes: 0, mtime: null, lines: [], missing: true };
+  }
+  const start = Math.max(0, size - WINDOW);
+  const length = size - start;
+  const buffer = Buffer.alloc(length);
+  const fd = openSync(file, "r");
+  try {
+    readSync(fd, buffer, 0, length, start);
+  } finally {
+    closeSync(fd);
+  }
+  const text = buffer.toString("utf8");
+  const lines = text.split("\n");
+  if (start > 0) lines.shift(); // a partial first line is not a record
+  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return {
+    object: "log.tail",
+    file: name,
+    path: file,
+    bytes: size,
+    mtime,
+    total_window_bytes: length,
+    lines: lines.slice(-limit),
+  };
+}
+
 async function runtimeFor(provider: ProviderConfig): Promise<Record<string, unknown>> {
   const base = { id: provider.id, kind: provider.kind, enabled: provider.enabled, transport: provider.transport };
 
@@ -204,8 +248,14 @@ async function runtimeFor(provider: ProviderConfig): Promise<Record<string, unkn
         ...base,
         reachable: health.status === 200,
         status: health.status,
+        // The alias is what the gateway publishes; model_path is a filesystem
+        // detail (a HF cache symlink here) and is not a model identifier.
+        model_alias: propsBody["model_alias"] ?? null,
         model_path: propsBody["model_path"] ?? null,
+        quantization: propsBody["model_ftype"] ?? null,
         n_ctx: asRecord(propsBody["default_generation_settings"])["n_ctx"] ?? null,
+        n_slots: propsBody["total_slots"] ?? null,
+        build_info: propsBody["build_info"] ?? null,
       };
     }
 
@@ -282,6 +332,13 @@ export async function handleAdmin(
       },
       token_estimator: "chars/4 ascii, chars/2 non-ascii; never exact",
       metrics_ws: "/admin/metrics/ws",
+      logs: {
+        dir: dirname(ctx.config.logPath),
+        gateway: ctx.config.logPath,
+        access: ctx.config.accessLogPath,
+        llama_server: join(dirname(ctx.config.logPath), "llama-server.jsonl"),
+        llama_model: join(dirname(ctx.config.logPath), "llama-model.log"),
+      },
     });
     return true;
   }
@@ -431,6 +488,45 @@ export async function handleAdmin(
     const providers = ctx.registry.list(true);
     const data = await Promise.all(providers.map((provider) => runtimeFor(provider)));
     json(res, 200, { object: "list", data });
+    return true;
+  }
+
+  if (method === "GET" && path === "/admin/model-stats") {
+    const windowMs = intParam(url.searchParams.get("window_ms"), 60 * 60 * 1000);
+    const stats = modelRuntimeStats(windowMs);
+    json(res, 200, {
+      object: "list",
+      window_ms: windowMs,
+      count: stats.length,
+      data: stats.map((row) => ({
+        ...row,
+        full_id: fullModelId(row.provider_id, row.model_id),
+        avg_ms: row.avg_ms === null ? null : Math.round(row.avg_ms * 10) / 10,
+      })),
+    });
+    return true;
+  }
+
+  if (method === "GET" && path === "/admin/logs") {
+    const name = url.searchParams.get("file") ?? "access";
+    const limit = Math.min(Math.max(intParam(url.searchParams.get("limit"), 200), 1), 2000);
+    const logDir = dirname(ctx.config.logPath);
+    const files: Record<string, string> = {
+      access: ctx.config.accessLogPath,
+      gateway: ctx.config.logPath,
+      "llama-server": join(logDir, "llama-server.jsonl"),
+      "llama-model": join(logDir, "llama-model.log"),
+    };
+    const file = files[name];
+    if (!file) {
+      throw new GatewayError({
+        message: `Unknown log file "${name}". Use one of: ${Object.keys(files).join(", ")}`,
+        status: 400,
+        code: "invalid_request_error",
+        param: "file",
+      });
+    }
+    json(res, 200, tailLog(file, name, limit));
     return true;
   }
 

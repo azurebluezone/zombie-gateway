@@ -106,3 +106,88 @@ same code, built with the maintainers' flags, and it takes seconds instead of
 tens of minutes. Pin the version, verify the published checksum, and keep it
 outside the repository. Compile only when you need a flag the release does not
 carry (a specific CUDA arch, ROCm, Vulkan, or `GGML_NATIVE=ON`).
+
+## 2026-10-28 — Llama-3.2-1B-Instruct-abliterated, managed by a script
+
+The GGUF lives in the Hugging Face cache; the file in `snapshots/` is a symlink
+to `blobs/`, so the real path is resolved with `readlink -f` before anything
+inspects `/proc/<pid>/maps`.
+
+```
+$ ls -l .../snapshots/becf3685…/Llama-3.2-1B-Instruct-abliterated.Q5_K_S.gguf
+lrwxrwxrwx … -> ../../blobs/8ec986ecf3c74be3b031dc015e8f0feaaa3e1be28bc5b6c55296b48fa5cd224f
+$ /home/sahon/src/llama.cpp/build/bin/llama-server --version
+version: 0.7.0-dev (build 1, commit 620d222)
+```
+
+`server/scripts/llama-model.sh start|stop|restart|status|logs|url` is the only
+way the model is launched. It runs `llama-server` with:
+
+```
+--model <gguf> --alias llama-3.2-1b-abliterated
+--host 127.0.0.1 --port 8080 --ctx-size 4096 --threads 4 --parallel 1
+--load-mode mmap --jinja --no-webui --metrics --log-jsonl
+```
+
+`--load-mode mmap` is explicit: the weights are a memory-mapped file, not an
+anonymous heap copy. `--mlock` is opt-in (`LLAMA_MLOCK=1`) because pinning
+1.2 GiB on a 16 GiB machine is a policy choice.
+
+```
+$ scripts/llama-model.sh start
+started pid 38737, waiting for http://127.0.0.1:8080/health
+healthy after 3s (pid 38737)
+
+$ scripts/llama-model.sh status
+pid:      38737
+health:   up (http://127.0.0.1:8080/health)
+model:    Llama-3.2-1B-Instruct-abliterated.Q5_K_S.gguf
+n_ctx:    4096
+slots:    1
+models:   llama-3.2-1b-abliterated
+rss:      1230 MiB
+mmap:     yes (gguf mapped into the process)
+```
+
+`mmap: yes` is read from `/proc/<pid>/maps` (a shared `r--s` mapping of the blob),
+not from the flag string.
+
+### Logs
+
+Everything lands in `server/logs/`:
+
+| File | Content |
+| --- | --- |
+| `llama-server.jsonl` | Every line llama-server prints, `--log-jsonl`: load, slots, per-request timings. |
+| `llama-model.log` | Supervisor lines from the script (`starting`, stop) and crash output. |
+| `gateway.jsonl` | Gateway lifecycle and `chat.completed` / `chat.failed` with tokens and status. |
+| `access.jsonl` | One line per HTTP request, success or failure, with `request_id`. |
+
+### Transport conformance
+
+`server/scripts/transport-check.mjs` sends seven real requests and validates the
+wire shape, then checks that each `x-request-id` reached `logs/access.jsonl`:
+
+```
+PASS  openai.nonstream.http   {"transport":"http","request_id":"7675a19e…","tokens":194,"ms":835}
+PASS  openai.stream.http      {"transport":"http","events":11,"done":true,"ms":1713}
+PASS  openai.nonstream.uds    {"transport":"uds","request_id":"a583d6bf…","ms":856}
+PASS  openai.stream.uds       {"transport":"uds","events":11,"done":true,"ms":1573}
+PASS  anthropic.nonstream.http {"stop_reason":"end_turn","ms":863}
+PASS  anthropic.stream.http   {"events":13,"ms":1753}
+PASS  anthropic.stream.uds    {"events":13,"ms":1126}
+14/14 checks passed
+```
+
+The unix socket is `/tmp/gateway.sock`, reachable through the stable symlink
+`~/.local/share/zombie-gateway/gateway.sock`.
+
+### Upstream stale-socket retry
+
+One run failed with `502 provider_unreachable (ECONNRESET)` on
+`anthropic.stream.uds`: Node reused a keep-alive socket the peer had already
+closed, and it does not retry a POST. `attemptUpstream()` now retries once on a
+fresh connection (`agent: false`) when the socket was reused, no response byte
+arrived, and the code is `ECONNRESET`/`EPIPE`, logging
+`upstream.retry_stale_socket`. The retry path is defensive: it has not been
+forced in a test, so it is NOT_TESTED even though the surrounding check passes.

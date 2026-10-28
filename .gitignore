@@ -1,11 +1,13 @@
 # Runtime state: SQLite database, WAL/SHM sidecars, JSONL request logs.
 # These contain prompts, client addresses and token counts. Never commit them.
 server/data/
+server/logs/
 *.db
 *.db-shm
 *.db-wal
 *.jsonl
 !docs/**/*.jsonl
+*.pid
 
 # Secrets and local overrides. .env.example is the documented surface.
 .env

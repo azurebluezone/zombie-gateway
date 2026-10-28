@@ -10,6 +10,12 @@ import { GatewayError } from "./errors.ts";
 
 export function json(res: ServerResponse, status: number, payload: unknown): void {
   const body = JSON.stringify(payload);
+  // The access log reads this header, so a failure carries its machine code even
+  // when the handler wrote the response itself instead of throwing.
+  const code = (payload as { error?: { code?: unknown } } | null)?.error?.code;
+  if (typeof code === "string" && code.length > 0) {
+    res.setHeader("x-error-code", code.replace(/[^\w.-]/g, "").slice(0, 64));
+  }
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "content-length": Buffer.byteLength(body),

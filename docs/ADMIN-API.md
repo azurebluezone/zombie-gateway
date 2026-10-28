@@ -84,7 +84,68 @@ Consequences:
 | `GET` | `/admin/metrics` | Window aggregates, per provider/model/minute. |
 | `GET` | `/admin/requests` | Recent request log rows. |
 | `GET` | `/admin/sessions` | Admin panel sessions (one row per WS handshake). `?limit=50&open=1`. |
+| `GET` | `/admin/model-stats` | Per-model runtime from `request_logs`: calls, errors, aborted, avg/max latency, tokens, last request. `?window_ms=3600000`. Latency excludes HTTP 499 (client aborted), so one hang-up cannot fake a two-minute model turn. |
+| `GET` | `/admin/logs` | Tail one log file. `?file=access\|gateway\|llama-server\|llama-model&limit=200`. Whitelisted names only; reads at most the last 512 KiB. |
 | `GET` | `/admin/metrics/ws` | WebSocket upgrade (also `/admin/ws`). See the protocol below. |
+| `GET` | `/admin/ui` | The dashboard HTML (also `/dashboard`; `/` redirects here with `302`). Served before the JSON router, same origin, so the page needs no CORS and no token in a query string. Read from `server/public/admin.html` per request — editing the file needs no restart. |
+
+## Dashboard (`/admin/ui`)
+
+A single static file, `server/public/admin.html`, that consumes the routes above
+from the browser. Nothing on it is sample data:
+
+- every card, table and chart is filled from `/admin/system`, `/admin/providers`,
+  `/admin/models?include_disabled=1`, `/admin/runtime`, `/admin/requests`,
+  `/admin/sessions`, `/admin/metrics`, `/admin/model-stats` and `/admin/logs`;
+- live counters arrive over `/admin/metrics/ws`; the socket pings every 20 s and
+  reconnects with exponential backoff capped at 15 s, so one tab keeps one
+  `admin_sessions` row open instead of churning new rows;
+- the server pings every 25 s and closes a socket only after 75 s of silence;
+- provider enable/disable/sync, model load/unload and the API console write
+  through the same routes a `curl` would use — there is no second code path.
+
+## Request logs
+
+All four files live in one directory, `server/logs/` by default (the parent of
+`GATEWAY_LOG`). `/admin/system` reports the absolute paths under `logs`, and the
+Runtime page prints the directory, so "where is the log?" has one answer.
+
+| File | Written by | Content |
+| --- | --- | --- |
+| `gateway.jsonl` (`GATEWAY_LOG`) | `src/core/logger.ts` | Lifecycle events: boot, policy load, catalogue sync, `chat.completed`, sanitizer warnings. Credentials are redacted. |
+| `access.jsonl` (`GATEWAY_ACCESS_LOG`) | `src/core/access.ts` | One line per HTTP request, success **and** failure, written on `finish` so status and byte count are final. Rotated at 8 MiB to `access.jsonl.1`. |
+| `llama-server.jsonl` | `scripts/llama-model.sh` (`--log-jsonl`) | Every line the engine prints: load, slots, per-request `print_timing`. |
+| `llama-model.log` | `scripts/llama-model.sh` | Supervisor lines (`starting`, stop) and crash output. |
+
+Read them without `ssh` + `tail`:
+
+```bash
+curl -s 'localhost:5252/admin/logs?file=access&limit=20' | jq -r '.path, (.lines[] | .)'
+curl -s 'localhost:5252/admin/logs?file=llama-server&limit=5' | jq -r '.lines[]'
+```
+
+Per-model runtime numbers (which model answered, how many calls, how slow) come
+from the same `request_logs` rows, grouped by provider+model:
+
+```bash
+curl -s 'localhost:5252/admin/model-stats?window_ms=86400000' | jq -c '.data[] | {full_id, calls, errors, aborted, avg_ms, max_ms}'
+```
+
+`calls` counts every row, `errors` counts HTTP ≥ 400 except 499, `aborted`
+counts 499, and `avg_ms` / `max_ms` ignore 499. A model that answered 10
+requests and had one caller hang up therefore reads `calls: 11, errors: 0,
+aborted: 1`, with latency from the 10 real answers.
+
+Access line fields: `ts`, `method`, `path`, `query`, `status`, `outcome`
+(`success` / `failure`), `duration_ms`, `bytes`, `remote`, `user_agent`,
+`session_id`, `request_id`, `error_code`, `error_message`. Failures carry the
+machine code via the `x-error-code` header (set by `respond.json()` and the chat
+error path), so a 4xx/5xx is filterable without parsing the body:
+
+```bash
+jq -c 'select(.outcome=="failure")' server/logs/access.jsonl | tail -20
+jq -r '.error_code' server/logs/access.jsonl | sort | uniq -c | sort -rn
+```
 
 ## Public inference routes
 

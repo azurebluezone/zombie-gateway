@@ -15,6 +15,7 @@ import { dirname } from "node:path";
 import { readGatewayConfig } from "./config.ts";
 import { createServer } from "./server.ts";
 import { closeDatabase, openDatabase } from "./core/db.ts";
+import { initAccessLog } from "./core/access.ts";
 import { initLogger, logEvent } from "./core/logger.ts";
 import { syncAll } from "./core/catalog.ts";
 import { ProviderRegistry } from "./core/registry.ts";
@@ -29,6 +30,7 @@ const LOOPBACK = new Set(["127.0.0.1", "::1", "localhost"]);
 async function main(): Promise<void> {
   const config = readGatewayConfig();
   initLogger(config.logPath);
+  initAccessLog(config.accessLogPath);
   openDatabase(config.dbPath);
 
   const registry = new ProviderRegistry();
@@ -69,6 +71,7 @@ async function main(): Promise<void> {
     port: config.port,
     db: config.dbPath,
     log: config.logPath,
+    access_log: config.accessLogPath,
     identity: identity.identity.name,
     identity_version: identity.identity.version,
     identity_sha256: identity.sha256,

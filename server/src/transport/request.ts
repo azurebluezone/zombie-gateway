@@ -15,6 +15,7 @@ import https from "node:https";
 import { randomUUID } from "node:crypto";
 import type { ProviderConfig } from "../config.ts";
 import { GatewayError } from "../core/errors.ts";
+import { logEvent } from "../core/logger.ts";
 
 export interface UpstreamRequest {
   method: "GET" | "POST";
@@ -121,11 +122,29 @@ export function openUpstream(
   config: ProviderConfig,
   request: UpstreamRequest,
 ): Promise<UpstreamStream> {
+  return attemptUpstream(config, request, false);
+}
+
+/**
+ * A keep-alive socket the peer already closed surfaces as ECONNRESET/EPIPE
+ * before a single response byte. Node retries that for idempotent methods, not
+ * for POST, so a reused socket turns into a spurious 502. One retry on a fresh
+ * connection (agent: false) is safe exactly there: no response was received, so
+ * no partial result exists to duplicate.
+ */
+function attemptUpstream(
+  config: ProviderConfig,
+  request: UpstreamRequest,
+  isRetry: boolean,
+): Promise<UpstreamStream> {
   const { options, secure } = optionsFor(config, request);
   const agent = secure ? https : http;
+  if (isRetry) options.agent = false;
 
   return new Promise<UpstreamStream>((resolvePromise, rejectPromise) => {
+    let responded = false;
     const req = agent.request(options, (response) => {
+      responded = true;
       resolvePromise({
         status: response.statusCode ?? 0,
         headers: response.headers,
@@ -151,6 +170,19 @@ export function openUpstream(
         return;
       }
       const code = (error as NodeJS.ErrnoException).code ?? "UNKNOWN";
+      const staleSocket =
+        !responded &&
+        req.reusedSocket === true &&
+        (code === "ECONNRESET" || code === "EPIPE");
+      if (staleSocket && !isRetry) {
+        logEvent("warn", "upstream.retry_stale_socket", {
+          provider: config.id,
+          path: request.path,
+          code,
+        });
+        attemptUpstream(config, request, true).then(resolvePromise, rejectPromise);
+        return;
+      }
       rejectPromise(
         new GatewayError({
           message: `Provider "${config.id}" is unreachable (${code})`,

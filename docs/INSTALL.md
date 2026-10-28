@@ -27,9 +27,11 @@ curl -s http://127.0.0.1:5252/v1/models
 | Path | Who creates it | Why |
 | --- | --- | --- |
 | `server/.env` | `scripts/setup.mjs` | copy of `.env.example`; edit the `CP_*` block |
-| `server/data/` | `scripts/setup.mjs` | default `GATEWAY_DB` / `GATEWAY_LOG` directory |
+| `server/data/` | `scripts/setup.mjs` | default `GATEWAY_DB` directory |
+| `server/logs/` | `scripts/setup.mjs` | default `GATEWAY_LOG` / `GATEWAY_ACCESS_LOG` directory |
 | `server/data/gateway.db` | the server, at boot | SQLite WAL database |
-| `server/data/gateway.jsonl` | the server, at boot | structured log, one JSON object per line |
+| `server/logs/gateway.jsonl` | the server, at boot | lifecycle log, one JSON object per line |
+| `server/logs/access.jsonl` | the server, per request | one line per HTTP request, success or failure |
 
 Relative paths in `.env` are resolved against the **process working directory**,
 which is `server/` when you use `npm start`. Starting `node src/index.ts` from a

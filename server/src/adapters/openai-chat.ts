@@ -100,7 +100,14 @@ export function normaliseChunk(chunk: Json, resolved: ResolvedModel): Json {
       choice["delta"] = {};
       continue;
     }
-    normaliseArguments((delta as Json)["tool_calls"]);
+    // OpenAI's documented role frame carries an empty string, not null, and a
+    // null field is what strict clients reject as an invalid stream event.
+    // Drop the nulls instead of shipping them: the field is optional.
+    const record = delta as Json;
+    if (record["content"] === null) record["content"] = "";
+    if (record["role"] === null) delete record["role"];
+    if (record["reasoning_content"] === null) delete record["reasoning_content"];
+    normaliseArguments(record["tool_calls"]);
   }
   chunk["choices"] = choices;
   return chunk;

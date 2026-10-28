@@ -721,6 +721,7 @@ export async function handleChatCompletions(
       res.writeHead(envelope.status, {
         "content-type": "application/json; charset=utf-8",
         "x-request-id": requestId,
+        "x-error-code": envelope.body.error.code,
         "x-sanitize": reportHeader(report),
         ...(planRef ? contextHeaders(planRef) : {}),
         ...(policyRef ? { "x-policy": policyHeader(policyRef) } : {}),
