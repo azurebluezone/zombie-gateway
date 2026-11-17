@@ -157,7 +157,7 @@ test("lone ZWJ at the string edge has no orthographic reading and is removed", (
 
 test("JSON walk cleans nested strings and reports once", () => {
   const body = {
-    model: "ollama/qwen2.5:1.5b",
+    model: "ollama/lfm3:1.7b",
     messages: [{ role: "user", content: `hi${ZWSP}there` }],
     input: [`doc${ZWSP}one`, `doc\u{E0041}two`],
   };

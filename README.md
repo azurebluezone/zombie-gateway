@@ -81,14 +81,14 @@ its SQLite database and log on boot. Full detail, including Windows:
 [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ```bash
-curl -s http://127.0.0.1:5252/health
-curl -s http://127.0.0.1:5252/v1/models
-curl -s http://127.0.0.1:5252/v1/chat/completions \
+curl -s http://127.0.0.1:5010/health
+curl -s http://127.0.0.1:5010/v1/models
+curl -s http://127.0.0.1:5010/v1/chat/completions \
   -H 'content-type: application/json' \
-  -d '{"model":"ollama/qwen2.5:1.5b","messages":[{"role":"user","content":"Say ready."}],"max_tokens":16}'
+  -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"Say ready."}],"max_tokens":16}'
 ```
 
-The port is **environment-only**: there is no compiled-in default. `5252` is
+The port is **environment-only**: there is no compiled-in default. `5010` is
 what `.env.example` ships, so `GATEWAY_PORT=5253 npm start` moves both the TCP
 listener and the URLs in the log without editing code. At least one listener must
 be configured — `GATEWAY_PORT` (TCP) and/or `GATEWAY_SOCKET` (Unix socket, or a
@@ -208,7 +208,7 @@ no port to open and no separate process to supervise.
       "zombie": {
         "type": "local",
         "command": ["node", "/path/to/server/scripts/gateway-mcp.mjs"],
-        "environment": { "GATEWAY_BASE_URL": "http://127.0.0.1:5252" }
+        "environment": { "GATEWAY_BASE_URL": "http://127.0.0.1:5010" }
       }
     }
   }
@@ -296,13 +296,13 @@ directory under `logs`.
 - unset — enforcement only when a token is configured.
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5252/admin/ui   # dashboard
-curl -s http://127.0.0.1:5252/admin/routes                 # self-description
-curl -s http://127.0.0.1:5252/admin/system                 # identity, policy, counts
-curl -s http://127.0.0.1:5252/admin/providers/schema       # field spec + examples
-curl -s -X POST http://127.0.0.1:5252/admin/sync           # discover every provider
-curl -s -X POST http://127.0.0.1:5252/admin/models/load \
-  -H 'content-type: application/json' -d '{"model":"ollama/qwen2.5:1.5b"}'  # any id from /v1/models
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5010/admin/ui   # dashboard
+curl -s http://127.0.0.1:5010/admin/routes                 # self-description
+curl -s http://127.0.0.1:5010/admin/system                 # identity, policy, counts
+curl -s http://127.0.0.1:5010/admin/providers/schema       # field spec + examples
+curl -s -X POST http://127.0.0.1:5010/admin/sync           # discover every provider
+curl -s -X POST http://127.0.0.1:5010/admin/models/load \
+  -H 'content-type: application/json' -d '{"model":"ollama/lfm3:1.7b"}'  # any id from /v1/models
 ```
 
 Token via `Authorization: Bearer …`, `x-admin-token: …`, or `?token=` on the
@@ -351,7 +351,8 @@ injected once per request into the outgoing copy only.
   carries it, nothing is added (`x-policy: present`).
 - **Never persisted.** The session store keeps the client transcript, so replay
   cannot multiply the text.
-- **Visible.** `x-policy` names the state and the token cost.
+- **Visible.** `x-policy` n
+ames the state and the token cost.
 - **Optional.** `GATEWAY_POLICY=off`, or per call `x-policy: off`.
 
 Details and measurements: [`docs/POLICY.md`](docs/POLICY.md).

@@ -124,6 +124,28 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_admin_sessions_opened ON admin_sessions(opened_at);
   `,
+  `
+  ALTER TABLE request_logs ADD COLUMN token_source TEXT NOT NULL DEFAULT 'unknown';
+  `,
+  `
+  ALTER TABLE models ADD COLUMN context_length_source TEXT NOT NULL DEFAULT 'provider';
+  CREATE TABLE gateway_users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    role TEXT NOT NULL DEFAULT 'inference',
+    api_key_hash TEXT NOT NULL UNIQUE,
+    api_key_prefix TEXT NOT NULL,
+    starts_at TEXT NOT NULL,
+    expires_at TEXT,
+    context_limit INTEGER,
+    token_limit INTEGER,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_gateway_users_key ON gateway_users(api_key_hash);
+  ALTER TABLE request_logs ADD COLUMN user_id TEXT REFERENCES gateway_users(id) ON DELETE SET NULL;
+  CREATE INDEX idx_logs_user ON request_logs(user_id, ts);
+  `,
 ];
 
 let instance: DatabaseSync | null = null;

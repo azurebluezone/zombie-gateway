@@ -1,6 +1,6 @@
 # Admin API
 
-Base URL: `http://127.0.0.1:5252` (or `GATEWAY_HOST` / `GATEWAY_PORT`).
+Base URL: `http://127.0.0.1:5010` (or `GATEWAY_HOST` / `GATEWAY_PORT`).
 Every route below is JSON in, JSON out. This process renders **no HTML** and ships
 **no admin UI**: a terminal, a script, or a remote panel can drive the whole
 system with `curl`. The only non-HTTP surface is one WebSocket on the *same port*
@@ -21,8 +21,8 @@ Two variables, one decision.
 ```bash
 export GATEWAY_ADMIN_AUTH=1
 export GATEWAY_ADMIN_TOKEN=secret-token
-curl -s -H 'authorization: Bearer secret-token' http://127.0.0.1:5252/admin/providers
-curl -s -H 'x-admin-token: secret-token'         http://127.0.0.1:5252/admin/providers
+curl -s -H 'authorization: Bearer secret-token' http://127.0.0.1:5010/admin/providers
+curl -s -H 'x-admin-token: secret-token'         http://127.0.0.1:5010/admin/providers
 ```
 
 A browser cannot set an `Authorization` header on a WebSocket, so the socket also
@@ -120,15 +120,15 @@ Runtime page prints the directory, so "where is the log?" has one answer.
 Read them without `ssh` + `tail`:
 
 ```bash
-curl -s 'localhost:5252/admin/logs?file=access&limit=20' | jq -r '.path, (.lines[] | .)'
-curl -s 'localhost:5252/admin/logs?file=llama-server&limit=5' | jq -r '.lines[]'
+curl -s 'localhost:5010/admin/logs?file=access&limit=20' | jq -r '.path, (.lines[] | .)'
+curl -s 'localhost:5010/admin/logs?file=llama-server&limit=5' | jq -r '.lines[]'
 ```
 
 Per-model runtime numbers (which model answered, how many calls, how slow) come
 from the same `request_logs` rows, grouped by provider+model:
 
 ```bash
-curl -s 'localhost:5252/admin/model-stats?window_ms=86400000' | jq -c '.data[] | {full_id, calls, errors, aborted, avg_ms, max_ms}'
+curl -s 'localhost:5010/admin/model-stats?window_ms=86400000' | jq -c '.data[] | {full_id, calls, errors, aborted, avg_ms, max_ms}'
 ```
 
 `calls` counts every row, `errors` counts HTTP ≥ 400 except 499, `aborted`
@@ -220,42 +220,42 @@ Paths are concatenated onto `base_url`:
 
 ```bash
 # 1. Ollama natively (full capability discovery via /api/tags)
-curl -s -X POST localhost:5252/admin/providers -H 'content-type: application/json' -d '{
+curl -s -X POST localhost:5010/admin/providers -H 'content-type: application/json' -d '{
   "id": "ollama", "kind": "ollama", "base_url": "http://127.0.0.1:11434"
 }'
 
 # 2. The same Ollama through its OpenAI /v1 surface (the custom bucket)
-curl -s -X POST localhost:5252/admin/providers -H 'content-type: application/json' -d '{
+curl -s -X POST localhost:5010/admin/providers -H 'content-type: application/json' -d '{
   "id": "ollama-v1", "kind": "openai", "base_url": "http://127.0.0.1:11434/v1",
   "caps": ["completion", "tools"], "extra": {"role": "test-mirror"}
 }'
 
 # 3. llama.cpp over a unix socket
-curl -s -X POST localhost:5252/admin/providers -H 'content-type: application/json' -d '{
+curl -s -X POST localhost:5010/admin/providers -H 'content-type: application/json' -d '{
   "id": "llamacpp", "kind": "llamacpp", "base_url": "http://localhost",
   "transport": "uds", "socket_path": "/run/llama.sock", "caps": ["completion"]
 }'
 
-curl -s -X POST localhost:5252/admin/providers/ollama-v1/sync
-curl -s localhost:5252/v1/models | python3 -m json.tool
-curl -s 'localhost:5252/admin/metrics?window_ms=3600000' | python3 -m json.tool
-curl -s localhost:5252/admin/runtime | python3 -m json.tool
+curl -s -X POST localhost:5010/admin/providers/ollama-v1/sync
+curl -s localhost:5010/v1/models | python3 -m json.tool
+curl -s 'localhost:5010/admin/metrics?window_ms=3600000' | python3 -m json.tool
+curl -s localhost:5010/admin/runtime | python3 -m json.tool
 
 # 4. Realtime: same port, same token (GATEWAY_ADMIN_AUTH=1 → ?token=...)
 node --eval '
-  const ws = new WebSocket("ws://127.0.0.1:5252/admin/metrics/ws?token=secret-token");
+  const ws = new WebSocket("ws://127.0.0.1:5010/admin/metrics/ws?token=secret-token");
   ws.onmessage = (e) => { const m = JSON.parse(e.data); console.log(m.type, m.seq ?? ""); if (m.seq === 2) ws.close(); };
 '
-curl -s localhost:5252/admin/sessions | python3 -m json.tool
+curl -s localhost:5010/admin/sessions | python3 -m json.tool
 ```
 
 Residency:
 
 ```bash
-curl -s -X POST localhost:5252/admin/models/load   -H 'content-type: application/json' \
-  -d '{"model":"ollama/qwen2.5:1.5b","keep_alive":"30m"}'
-curl -s -X POST localhost:5252/admin/models/unload -H 'content-type: application/json' \
-  -d '{"model":"ollama/qwen2.5:1.5b"}'
+curl -s -X POST localhost:5010/admin/models/load   -H 'content-type: application/json' \
+  -d '{"model":"ollama/lfm3:1.7b","keep_alive":"30m"}'
+curl -s -X POST localhost:5010/admin/models/unload -H 'content-type: application/json' \
+  -d '{"model":"ollama/lfm3:1.7b"}'
 ```
 
 `load`/`unload` use Ollama's native `/api/generate` `keep_alive` field. Any other
@@ -330,12 +330,12 @@ Rows left open by a killed process are closed at the next boot and logged as
 **Browser client (works from `file://`)**
 
 ```js
-const ws = new WebSocket(`ws://127.0.0.1:5252/admin/metrics/ws?token=${token}`);
+const ws = new WebSocket(`ws://127.0.0.1:5010/admin/metrics/ws?token=${token}`);
 ws.onmessage = (event) => {
   const message = JSON.parse(event.data);
   if (message.type === "metrics") render(message.data);
 };
-// const ws = new WebSocket("ws://127.0.0.1:5252/admin/metrics/ws"); // GATEWAY_ADMIN_AUTH=0
+// const ws = new WebSocket("ws://127.0.0.1:5010/admin/metrics/ws"); // GATEWAY_ADMIN_AUTH=0
 ```
 
 **Measured on this machine** (Node 24 global `WebSocket` + a raw `net` handshake

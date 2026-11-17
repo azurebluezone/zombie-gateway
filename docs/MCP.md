@@ -41,7 +41,7 @@ reads `~/.config/opencode/opencode.json`):
           "/home/sahon/zombie-gateway-main/server/scripts/gateway-mcp.mjs"
         ],
         "environment": {
-          "GATEWAY_BASE_URL": "http://127.0.0.1:5252"
+          "GATEWAY_BASE_URL": "http://127.0.0.1:5010"
         }
       }
     }
@@ -53,7 +53,7 @@ Environment read by the server:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `GATEWAY_BASE_URL` | `http://127.0.0.1:5252` | Gateway origin |
+| `GATEWAY_BASE_URL` | `http://127.0.0.1:5010` | Gateway origin |
 | `GATEWAY_ADMIN_TOKEN` | empty | Bearer token for `/admin` routes when `GATEWAY_ADMIN_AUTH=1` |
 | `GATEWAY_MCP_TIMEOUT_MS` | `120000` | Per-request budget; local CPU generation is slow |
 

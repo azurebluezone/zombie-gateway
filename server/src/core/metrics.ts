@@ -23,6 +23,8 @@ export interface WindowTotals {
   avg_ttfb_ms: number | null;
   prompt_tokens: number;
   completion_tokens: number;
+  estimated_prompt_tokens: number;
+  estimated_completion_tokens: number;
 }
 
 interface AggregateRow {
@@ -34,6 +36,8 @@ interface AggregateRow {
   avg_ttfb_ms: number | null;
   prompt_tokens: number | null;
   completion_tokens: number | null;
+  estimated_prompt_tokens: number | null;
+  estimated_completion_tokens: number | null;
 }
 
 interface PercentileRow {
@@ -67,8 +71,10 @@ function totalsFor(since: string, providerId?: string, modelId?: string): Window
             AVG(CASE WHEN status <> 499 THEN duration_ms END) AS avg_ms,
             MAX(CASE WHEN status <> 499 THEN duration_ms END) AS max_ms,
             AVG(CASE WHEN status <> 499 THEN ttfb_ms END) AS avg_ttfb_ms,
-            SUM(COALESCE(prompt_tokens, 0)) AS prompt_tokens,
-            SUM(COALESCE(completion_tokens, 0)) AS completion_tokens
+            SUM(CASE WHEN token_source = 'provider' THEN COALESCE(prompt_tokens, 0) ELSE 0 END) AS prompt_tokens,
+            SUM(CASE WHEN token_source = 'provider' THEN COALESCE(completion_tokens, 0) ELSE 0 END) AS completion_tokens,
+            SUM(CASE WHEN token_source = 'estimate' THEN COALESCE(prompt_tokens, 0) ELSE 0 END) AS estimated_prompt_tokens,
+            SUM(CASE WHEN token_source = 'estimate' THEN COALESCE(completion_tokens, 0) ELSE 0 END) AS estimated_completion_tokens
      FROM request_logs WHERE ${where}`,
     ...params,
   );
@@ -91,6 +97,8 @@ function totalsFor(since: string, providerId?: string, modelId?: string): Window
       row?.avg_ttfb_ms === null || row?.avg_ttfb_ms === undefined ? null : Math.round(row.avg_ttfb_ms),
     prompt_tokens: row?.prompt_tokens ?? 0,
     completion_tokens: row?.completion_tokens ?? 0,
+    estimated_prompt_tokens: row?.estimated_prompt_tokens ?? 0,
+    estimated_completion_tokens: row?.estimated_completion_tokens ?? 0,
   };
 }
 
@@ -182,6 +190,7 @@ export interface RequestRow {
   chunk_count: number | null;
   prompt_tokens: number | null;
   completion_tokens: number | null;
+  token_source: string;
   session_id: string | null;
 }
 
@@ -190,7 +199,7 @@ export function recentRequests(limit: number, providerId?: string): RequestRow[]
   if (providerId) {
     return queryAll<RequestRow>(
       `SELECT request_id, ts, provider_id, model_id, stream, status, error_code,
-              duration_ms, ttfb_ms, chunk_count, prompt_tokens, completion_tokens, session_id
+              duration_ms, ttfb_ms, chunk_count, prompt_tokens, completion_tokens, token_source, session_id
        FROM request_logs WHERE provider_id = ? ORDER BY id DESC LIMIT ?`,
       providerId,
       capped,
@@ -198,7 +207,7 @@ export function recentRequests(limit: number, providerId?: string): RequestRow[]
   }
   return queryAll<RequestRow>(
     `SELECT request_id, ts, provider_id, model_id, stream, status, error_code,
-            duration_ms, ttfb_ms, chunk_count, prompt_tokens, completion_tokens, session_id
+            duration_ms, ttfb_ms, chunk_count, prompt_tokens, completion_tokens, token_source, session_id
      FROM request_logs ORDER BY id DESC LIMIT ?`,
     capped,
   );
@@ -214,6 +223,8 @@ export interface ModelRuntimeStat {
   max_ms: number | null;
   prompt_tokens: number;
   completion_tokens: number;
+  estimated_prompt_tokens: number;
+  estimated_completion_tokens: number;
   last_ts: string | null;
 }
 
@@ -240,8 +251,10 @@ export function modelRuntimeStats(windowMs: number): ModelRuntimeStat[] {
             SUM(CASE WHEN status = 499 THEN 1 ELSE 0 END) AS aborted,
             AVG(CASE WHEN status <> 499 THEN duration_ms END) AS avg_ms,
             MAX(CASE WHEN status <> 499 THEN duration_ms END) AS max_ms,
-            SUM(COALESCE(prompt_tokens, 0)) AS prompt_tokens,
-            SUM(COALESCE(completion_tokens, 0)) AS completion_tokens,
+            SUM(CASE WHEN token_source = 'provider' THEN COALESCE(prompt_tokens, 0) ELSE 0 END) AS prompt_tokens,
+            SUM(CASE WHEN token_source = 'provider' THEN COALESCE(completion_tokens, 0) ELSE 0 END) AS completion_tokens,
+            SUM(CASE WHEN token_source = 'estimate' THEN COALESCE(prompt_tokens, 0) ELSE 0 END) AS estimated_prompt_tokens,
+            SUM(CASE WHEN token_source = 'estimate' THEN COALESCE(completion_tokens, 0) ELSE 0 END) AS estimated_completion_tokens,
             MAX(ts) AS last_ts
      FROM request_logs
      WHERE ts >= ? AND provider_id IS NOT NULL AND model_id IS NOT NULL

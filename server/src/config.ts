@@ -38,6 +38,7 @@ export interface ProviderConfig {
   models: string[];
   caps: string[];
   timeoutMs: number;
+  defaultContextLength: number | null;
   enabled: boolean;
   /** Where the row came from: environment seed or admin API. */
   source: "env" | "admin";
@@ -68,6 +69,8 @@ export interface GatewayConfig {
   /** When false the admin surface is open even if a token is configured. */
   adminAuth: boolean;
   adminToken: string | null;
+  /** Require issued gateway user API keys for inference routes. */
+  userAuth: boolean;
   /** Empty array means wildcard. Use "null" for a file:// page origin. */
   adminOrigins: string[];
   identityHeaders: boolean;
@@ -85,7 +88,7 @@ export interface GatewayConfig {
   providers: ProviderConfig[];
 }
 
-const FIELD_RE = /_(BASE_URL|KIND|TRANSPORT|SOCKET|API_KEY|MODELS|CAPS|TIMEOUT_MS|HEADERS)$/;
+const FIELD_RE = /_(BASE_URL|KIND|TRANSPORT|SOCKET|API_KEY|MODELS|CAPS|TIMEOUT_MS|HEADERS|CONTEXT_LENGTH)$/;
 const PREFIX = "CP_";
 
 const KIND_ALIASES: Array<{ prefix: string; kind: ProviderKind }> = [
@@ -206,6 +209,10 @@ export function readProviderConfigs(env: NodeJS.ProcessEnv = process.env): Provi
     seen.set(id, rawId);
 
     const transport = readTransport(fields["TRANSPORT"], baseUrl);
+    const defaultContextLength = fields["CONTEXT_LENGTH"] === undefined ? null : Number(fields["CONTEXT_LENGTH"]);
+    if (defaultContextLength !== null && (!Number.isInteger(defaultContextLength) || defaultContextLength < 1)) {
+      throw new Error(`CP_${rawId}_CONTEXT_LENGTH must be a positive integer`);
+    }
     const socketPath = fields["SOCKET"] ?? null;
     if (transport === "uds" && !socketPath) {
       throw new Error(`Provider "${id}" uses uds transport without CP_${rawId}_SOCKET`);
@@ -223,6 +230,7 @@ export function readProviderConfigs(env: NodeJS.ProcessEnv = process.env): Provi
       models: splitList(fields["MODELS"]),
       caps: splitList(fields["CAPS"]),
       timeoutMs: readTimeout(fields["TIMEOUT_MS"]),
+      defaultContextLength,
       enabled: true,
       source: "env",
       notes: null,
@@ -242,7 +250,7 @@ function readInt(raw: string | undefined, fallback: number): number {
 
 /**
  * Ports come from the environment and nowhere else. There is deliberately no
- * default: a gateway that silently picks 5252 when GATEWAY_PORT is missing can
+ * default: a gateway that silently picks 5010 when GATEWAY_PORT is missing can
  * collide with an unrelated service, and the operator never sees why.
  *
  * An empty value means "no TCP listener" (socket-only deployments). Anything
@@ -356,8 +364,7 @@ function readPolicyMode(raw: string | undefined): PolicyMode {
 export function readGatewayConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
   const adminToken = env["GATEWAY_ADMIN_TOKEN"] || null;
   const explicitAuth = readBoolean(env["GATEWAY_ADMIN_AUTH"]);
-  // Default keeps the previous behaviour: a configured token means enforcement.
-  const adminAuth = explicitAuth === null ? adminToken !== null : explicitAuth;
+  const adminAuth = explicitAuth ?? false;
 
   if (adminAuth && !adminToken) {
     throw new Error("GATEWAY_ADMIN_AUTH is enabled but GATEWAY_ADMIN_TOKEN is empty");
@@ -385,6 +392,7 @@ export function readGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
     logPrompts: env["GATEWAY_LOG_PROMPTS"] === "1",
     adminAuth,
     adminToken,
+    userAuth: readBoolean(env["GATEWAY_USER_AUTH"]) ?? false,
     adminOrigins: readOrigins(env["GATEWAY_ADMIN_ORIGINS"]),
     identityHeaders: env["GATEWAY_IDENTITY_HEADERS"] !== "0",
     identityFile: resolveOptionalPath(env["GATEWAY_IDENTITY_FILE"]),

@@ -93,13 +93,13 @@ function upsertModel(model: DiscoveredModel): void {
     `INSERT INTO models (
        provider_id, model_id, upstream_id, display_name, caps, context_length,
        parameter_size, quantization, family, size_bytes, source, capabilities_source,
-       first_seen_at, last_seen_at, missing_scans, active, raw
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?)
+       first_seen_at, last_seen_at, missing_scans, active, raw, context_length_source
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?, ?)
      ON CONFLICT(provider_id, model_id) DO UPDATE SET
        upstream_id = excluded.upstream_id,
        display_name = excluded.display_name,
        caps = excluded.caps,
-       context_length = excluded.context_length,
+       context_length = CASE WHEN models.context_length_source = 'manual' THEN models.context_length ELSE excluded.context_length END,
        parameter_size = excluded.parameter_size,
        quantization = excluded.quantization,
        family = excluded.family,
@@ -109,7 +109,8 @@ function upsertModel(model: DiscoveredModel): void {
        last_seen_at = excluded.last_seen_at,
        missing_scans = 0,
        active = 1,
-       raw = excluded.raw`,
+       raw = excluded.raw,
+       context_length_source = CASE WHEN models.context_length_source = 'manual' THEN 'manual' ELSE excluded.context_length_source END`,
     model.providerId,
     model.modelId,
     model.upstreamId,
@@ -125,6 +126,7 @@ function upsertModel(model: DiscoveredModel): void {
     nowIso(),
     nowIso(),
     model.raw === null ? null : JSON.stringify(model.raw),
+    model.contextLengthSource ?? (model.contextLength === null ? 'provider' : 'provider'),
   );
 }
 
@@ -134,10 +136,12 @@ export async function syncProvider(config: ProviderConfig): Promise<SyncReport> 
   const driver = driverFor(config.kind);
 
   try {
-    const discovered = await driver.discover(config, {
+    const discovered = (await driver.discover(config, {
       declaredCaps: config.caps,
       declaredModels: config.models,
-    });
+    })).map((model) => model.contextLength === null && config.defaultContextLength !== null
+      ? { ...model, contextLength: config.defaultContextLength, contextLengthSource: "default" as const }
+      : model);
 
     const capabilities = [...new Set(discovered.flatMap((model) => model.caps))];
     upsertProvider(config, capabilities, null);

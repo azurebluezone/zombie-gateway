@@ -57,16 +57,15 @@ test("catalogue qualifies the model id and keeps the engine's context length", a
   });
 
   const response = await fetch(`${gateway.base}/v1/models`);
-  const body = (await response.json()) as { data: Array<Record<string, unknown>> };
-  const model = body.data[0] as {
-    id: string;
-    metadata: { context_length: number; capabilities: string[] };
-  };
+  const body = (await response.json()) as { object: string; data: Array<Record<string, unknown>> };
+  const model = body.data[0] as Record<string, unknown>;
 
   assert.equal(response.status, 200);
-  assert.equal(model.id, MODEL);
-  assert.equal(model.metadata.context_length, 2048);
-  assert.deepEqual(model.metadata.capabilities, ["completion", "tools"]);
+  assert.equal(body.object, "list");
+  assert.equal(model["id"], MODEL);
+  assert.equal(model["object"], "model");
+  assert.equal(model["owned_by"], "fix");
+  assert.equal(model["metadata"], undefined);
 });
 
 test("non-stream chat returns the completion and the ledger headers", async (t) => {
@@ -83,15 +82,137 @@ test("non-stream chat returns the completion and the ledger headers", async (t) 
     body: JSON.stringify(chatBody("hello")),
   });
   const body = (await response.json()) as {
+    object: string;
+    model: string;
     choices: Array<{ message: { content: string } }>;
     usage: { prompt_tokens: number };
+    timings?: unknown;
   };
 
   assert.equal(response.status, 200);
   assert.equal(body.choices[0]?.message.content, "fixture ok");
   assert.equal(body.usage.prompt_tokens, 20);
+  assert.equal(body.object, "chat.completion");
+  assert.equal(body.model, MODEL);
+  assert.equal(body.timings, undefined);
+  assert.equal((body.choices[0]?.message as { reasoning?: unknown }).reasoning, undefined);
+  assert.equal((body.choices[0]?.message as { reasoning_content?: unknown }).reasoning_content, undefined);
+  assert.deepEqual(Object.keys(body).sort(), ["choices", "created", "id", "model", "object", "usage"]);
+  assert.deepEqual(Object.keys(body.choices[0]!.message).sort(), ["content", "role"]);
   assert.equal(response.headers.get("x-context-limit"), "2048");
   assert.match(response.headers.get("x-policy") ?? "", /^(applied;tokens=\d+|present|off|disabled)$/);
+});
+
+test("non-stream tool calls keep the OpenAI chat-completion response shape", async (t) => {
+  const fixture = await startFixture();
+  const gateway = await startGateway({ CP_FIX_KIND: "openai", CP_FIX_BASE_URL: fixture.base, CP_FIX_CAPS: "tools" });
+  t.after(async () => {
+    await gateway.stop();
+    await fixture.close();
+  });
+
+  const response = await fetch(`${gateway.base}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [{ role: "user", content: "What is 2+2?" }],
+      tools: [{ type: "function", function: { name: "calculator", parameters: { type: "object" } } }],
+    }),
+  });
+  const body = await response.json() as Record<string, any>;
+  const choice = body.choices[0];
+
+  assert.equal(response.status, 200);
+  assert.equal(body.object, "chat.completion");
+  assert.equal(body.model, MODEL);
+  assert.equal(choice.index, 0);
+  assert.equal(choice.finish_reason, "tool_calls");
+  assert.equal(choice.message.role, "assistant");
+  assert.equal(choice.message.tool_calls[0].type, "function");
+  assert.equal(choice.message.tool_calls[0].function.arguments, '{"expression":"2+2"}');
+  assert.equal(body.usage.total_tokens, body.usage.prompt_tokens + body.usage.completion_tokens);
+});
+
+test("streamed tool-call fragments remain valid OpenAI SSE chunks", async (t) => {
+  const fixture = await startFixture();
+  const gateway = await startGateway({ CP_FIX_KIND: "openai", CP_FIX_BASE_URL: fixture.base, CP_FIX_CAPS: "tools" });
+  t.after(async () => {
+    await gateway.stop();
+    await fixture.close();
+  });
+
+  const response = await fetch(`${gateway.base}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...chatBody("What is 2+2?", true),
+      tools: [{ type: "function", function: { name: "calculator", parameters: { type: "object" } } }],
+    }),
+  });
+  const text = await response.text();
+  const events = text.split("\n").filter(line => line.startsWith("data: {")).map(line => JSON.parse(line.slice(6)) as Record<string, any>);
+  const toolDelta = events.flatMap(event => event.choices || []).flatMap(choice => choice.delta?.tool_calls || []);
+
+  assert.equal(response.status, 200);
+  assert.ok(text.includes("data: [DONE]"));
+  assert.ok(events.every(event => event.object === "chat.completion.chunk" && typeof event.model === "string"));
+  assert.equal(new Set(events.map(event => event.id)).size, 1, "OpenAI stream chunks share one completion id");
+  assert.equal(new Set(events.map(event => event.created)).size, 1, "OpenAI stream chunks share one creation timestamp");
+  assert.ok(events.every(event => (event.choices || []).every((choice: any) => choice.delta?.reasoning === undefined && choice.delta?.reasoning_content === undefined)));
+  assert.equal(toolDelta[0].id, "call_fixture");
+  assert.equal(toolDelta[0].function.name, "calculator");
+  assert.equal(toolDelta.map(call => call.function.arguments || "").join(""), '{"expression":"2+2"}');
+});
+
+test("estimated usage stays standard-shaped and is tracked separately from provider usage", async (t) => {
+  const fixture = await startFixture();
+  const gateway = await startGateway({ CP_FIX_KIND: "openai", CP_FIX_BASE_URL: fixture.base });
+  t.after(async () => {
+    await gateway.stop();
+    await fixture.close();
+  });
+
+  const response = await fetch(`${gateway.base}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(chatBody("MODE:NO_USAGE")),
+  });
+  const body = await response.json() as Record<string, any>;
+  const metricsResponse = await fetch(`${gateway.base}/admin/metrics?window_ms=3600000`);
+  const metrics = await metricsResponse.json() as Record<string, any>;
+
+  assert.equal(response.headers.get("x-usage-source"), "estimate");
+  assert.equal(body.object, "chat.completion");
+  assert.equal(body.usage.estimated, undefined);
+  assert.equal(body.usage.total_tokens, body.usage.prompt_tokens + body.usage.completion_tokens);
+  assert.ok(metrics.totals.estimated_prompt_tokens > 0);
+  assert.equal(metrics.totals.prompt_tokens, 0);
+});
+
+test("embeddings response matches the OpenAI list/data/usage shape", async (t) => {
+  const fixture = await startFixture();
+  const gateway = await startGateway({ CP_FIX_KIND: "openai", CP_FIX_BASE_URL: fixture.base, CP_FIX_CAPS: "embeddings" });
+  t.after(async () => {
+    await gateway.stop();
+    await fixture.close();
+  });
+
+  const response = await fetch(`${gateway.base}/v1/embeddings`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ model: MODEL, input: ["first", "second"] }),
+  });
+  const body = await response.json() as Record<string, any>;
+
+  assert.equal(response.status, 200);
+  assert.equal(body.object, "list");
+  assert.equal(body.model, MODEL);
+  assert.equal(body.data.length, 2);
+  assert.ok(body.data.every((row: any, index: number) => row.object === "embedding" && row.index === index && row.embedding.every((value: unknown) => typeof value === "number")));
+  assert.equal(body.usage.prompt_tokens, 7);
+  assert.equal(body.usage.total_tokens, 7);
+  assert.equal(body.timings, undefined);
 });
 
 test("stream chat forwards SSE frames and one terminator", async (t) => {
@@ -108,12 +229,16 @@ test("stream chat forwards SSE frames and one terminator", async (t) => {
     body: JSON.stringify(chatBody("hello", true)),
   });
   const text = await response.text();
+  const chunks = text.split("\n").filter(line => line.startsWith("data: {")).map(line => JSON.parse(line.slice(6)) as Record<string, any>);
 
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /text\/event-stream/);
   assert.equal((text.match(/data: \[DONE\]/g) ?? []).length, 1);
   assert.match(text, /fixture /);
   assert.match(text, /"prompt_tokens":20/);
+  assert.equal(new Set(chunks.map(chunk => chunk.id)).size, 1);
+  assert.equal(new Set(chunks.map(chunk => chunk.created)).size, 1);
+  assert.ok(chunks.every(chunk => (chunk.choices || []).every((choice: any) => choice.delta?.reasoning === undefined && choice.delta?.reasoning_content === undefined)));
 });
 
 test("an upstream 500 keeps the status, the code and the upstream message", async (t) => {

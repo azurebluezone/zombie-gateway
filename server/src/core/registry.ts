@@ -38,6 +38,7 @@ export interface ProviderInput {
   models?: string[];
   caps?: string[];
   timeout_ms?: number;
+  default_context_length?: number | null;
   enabled?: boolean;
   notes?: string | null;
   extra?: Record<string, unknown>;
@@ -116,6 +117,7 @@ function toConfig(row: ProviderRow): ProviderConfig {
     models: asStringArray(extra["models"]),
     caps: declaredCaps(row),
     timeoutMs: typeof extra["timeout_ms"] === "number" ? extra["timeout_ms"] : 300_000,
+    defaultContextLength: typeof extra["default_context_length"] === "number" ? extra["default_context_length"] : null,
     enabled: row.enabled === 1,
     source: extra["source"] === "admin" ? "admin" : "env",
     notes: typeof extra["notes"] === "string" ? extra["notes"] : null,
@@ -137,6 +139,7 @@ function configJson(config: ProviderConfig): string {
     headers: config.headers,
     models: config.models,
     timeout_ms: config.timeoutMs,
+    default_context_length: config.defaultContextLength,
     source: config.source,
     notes: config.notes,
     extra: config.extra,
@@ -247,6 +250,11 @@ function validate(raw: ProviderInput, fallbackId?: string): ProviderConfig {
     });
   }
 
+  const defaultContextLength = raw.default_context_length == null ? null : Number(raw.default_context_length);
+  if (defaultContextLength !== null && (!Number.isInteger(defaultContextLength) || defaultContextLength < 1)) {
+    throw new GatewayError({ message: "default_context_length must be a positive integer", status: 400, code: "invalid_request_error", param: "default_context_length" });
+  }
+
   const extra = asObject(raw.extra);
   if (Buffer.byteLength(JSON.stringify(extra)) > MAX_EXTRA_BYTES) {
     throw new GatewayError({
@@ -281,6 +289,7 @@ function validate(raw: ProviderInput, fallbackId?: string): ProviderConfig {
     models: asStringArray(raw.models),
     caps: asStringArray(raw.caps),
     timeoutMs,
+    defaultContextLength,
     enabled: raw.enabled === undefined ? true : Boolean(raw.enabled),
     source: "admin",
     notes: raw.notes ? String(raw.notes) : null,
@@ -357,6 +366,9 @@ export class ProviderRegistry {
 
   create(raw: ProviderInput): ProviderConfig {
     const config = validate(raw);
+    if (config.kind !== "openai" && [...this.map.values()].some((p) => p.kind === config.kind)) {
+      throw new GatewayError({ message: `Only one ${config.kind} provider is allowed`, status: 409, code: "provider_exists", param: "kind" });
+    }
     if (queryOne<{ id: string }>("SELECT id FROM providers WHERE id = ?", config.id)) {
       throw new GatewayError({
         message: `Provider "${config.id}" already exists; use PATCH /admin/providers/${config.id}`,
@@ -384,6 +396,7 @@ export class ProviderRegistry {
       models: patch.models ?? current.models,
       caps: patch.caps ?? current.caps,
       timeout_ms: patch.timeout_ms ?? current.timeoutMs,
+      default_context_length: patch.default_context_length === undefined ? current.defaultContextLength : patch.default_context_length,
       enabled: patch.enabled ?? current.enabled,
       notes: patch.notes === undefined ? current.notes : patch.notes,
       extra: patch.extra ?? current.extra,

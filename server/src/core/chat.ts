@@ -173,6 +173,7 @@ export async function handleChatCompletions(
   let chunkCount = 0;
   let promptTokens: number | null = null;
   let completionTokens: number | null = null;
+  let tokenSource: "provider" | "estimate" | "none" = "none";
   let status = 500;
   let errorCode: string | null = null;
   let detail: string | null = null;
@@ -229,6 +230,8 @@ export async function handleChatCompletions(
       promptHash,
       promptTokens,
       completionTokens,
+      tokenSource,
+      userId: (req as IncomingMessage & { gatewayUserId?: string }).gatewayUserId ?? null,
       detail,
     });
   };
@@ -378,7 +381,26 @@ export async function handleChatCompletions(
         });
       }
 
+      const upstreamUsage = typeof parsed["usage"] === "object" && parsed["usage"] !== null
+        ? parsed["usage"] as Json : {};
+      const usageEstimated = !Number.isInteger(upstreamUsage["prompt_tokens"]) ||
+        !Number.isInteger(upstreamUsage["completion_tokens"]) ||
+        (upstreamUsage["prompt_tokens"] as number) < 0 || (upstreamUsage["completion_tokens"] as number) < 0;
       const normalised = normaliseCompletion(parsed, resolved, promptText);
+      const normalisedChoices = normalised["choices"];
+      if (!Array.isArray(normalisedChoices) || normalisedChoices.length === 0 || normalisedChoices.some((choice) => {
+        if (typeof choice !== "object" || choice === null) return true;
+        const record = choice as Json;
+        return typeof record["index"] !== "number" || typeof record["finish_reason"] !== "string" ||
+          typeof record["message"] !== "object" || record["message"] === null;
+      })) {
+        throw new GatewayError({
+          message: `Provider "${provider.id}" returned a malformed chat completion (expected non-empty choices with assistant messages)`,
+          status: 502,
+          code: "provider_error",
+          providerId: provider.id,
+        });
+      }
       const outputReport = scrubCompletion(normalised, ctx.config.sanitize);
       if (outputReport.detected > 0 || outputReport.trailingMark) {
         logEvent("warn", "sanitize.response", {
@@ -408,7 +430,7 @@ export async function handleChatCompletions(
 
       // An estimated usage block is our own arithmetic; judging it against the
       // estimate would compare a guess with itself and always look healthy.
-      const usageEstimated = usage?.["estimated"] === true;
+      tokenSource = usageEstimated ? "estimate" : usage ? "provider" : "none";
       const verdict = judgeUsage(plan, usageEstimated ? null : promptTokens, completionTokens);
       if (verdict.drift) {
         logEvent("warn", "context.estimate_drift", {
@@ -438,6 +460,7 @@ export async function handleChatCompletions(
         "x-sanitize": reportHeader(report),
         "x-sanitize-output": reportHeader(outputReport),
         "x-policy": policyHeader(injection),
+        "x-usage-source": usageEstimated ? "estimate" : "provider",
         ...(promptTokens !== null ? { "x-context-actual": String(promptTokens) } : {}),
       });
       res.end(JSON.stringify(normalised));
@@ -462,6 +485,7 @@ export async function handleChatCompletions(
       ...contextHeaders(plan),
       "x-sanitize": reportHeader(report),
       "x-policy": policyHeader(injection),
+      "x-usage-source": "provider-or-estimate",
     });
     ttfbMs = null;
 
@@ -476,9 +500,12 @@ export async function handleChatCompletions(
       number,
       { id: string | null; name: string; arguments: string }
     >();
+    const streamIdentity: { id?: string; created?: number } = {};
 
     const emit = async (chunk: Json): Promise<void> => {
-      const normalised = normaliseChunk(chunk, resolved as ResolvedModel);
+      const normalised = normaliseChunk(chunk, resolved as ResolvedModel, streamIdentity);
+      if (typeof normalised["id"] === "string") streamIdentity.id ??= normalised["id"] as string;
+      if (typeof normalised["created"] === "number") streamIdentity.created ??= normalised["created"] as number;
       const usage = normalised["usage"];
       if (typeof usage === "object" && usage !== null) {
         sawUsage = true;
@@ -582,6 +609,7 @@ export async function handleChatCompletions(
     upstreamDrained = true;
 
     if (!sawUsage) {
+      tokenSource = "estimate";
       const promptTokensFinal = estimateTokens(promptText);
       const completionTokensFinal = estimateTokens(textOut);
       promptTokens = promptTokensFinal;
@@ -596,10 +624,10 @@ export async function handleChatCompletions(
           prompt_tokens: promptTokensFinal,
           completion_tokens: completionTokensFinal,
           total_tokens: promptTokensFinal + completionTokensFinal,
-          estimated: true,
         },
       });
     }
+    else tokenSource = "provider";
 
     // The stream itself cannot be rewritten: a carrier may straddle two chunks,
     // and half a ZWJ pair is worse than the carrier. The full text is still

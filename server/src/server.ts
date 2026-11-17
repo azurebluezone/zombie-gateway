@@ -18,6 +18,7 @@
  */
 
 import http from "node:http";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { handleAdmin } from "./admin/api.ts";
@@ -31,6 +32,8 @@ import { GatewayError, toEnvelope } from "./core/errors.ts";
 import { logEvent } from "./core/logger.ts";
 import { cors, json, readJson } from "./core/respond.ts";
 import { identityHeaders } from "./identity.ts";
+import { queryOne } from "./core/db.ts";
+import { estimateTokens } from "./core/tokens.ts";
 
 const startedAt = Date.now();
 
@@ -143,6 +146,22 @@ async function route(
 
   if (await handleAdmin(ctx, req, res, path, url)) return;
 
+  if (["/v1/chat/completions", "/chat/completions", "/v1/messages", "/messages", "/v1/messages/count_tokens", "/messages/count_tokens", "/v1/embeddings", "/embeddings"].includes(path)) {
+    const header = req.headers.authorization;
+    const key = typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7) : "";
+    const user = key ? queryOne<{id:string;role:string;starts_at:string;expires_at:string|null;context_limit:number|null;token_limit:number|null;enabled:number}>("SELECT id,role,starts_at,expires_at,context_limit,token_limit,enabled FROM gateway_users WHERE api_key_hash=?", createHash("sha256").update(key).digest("hex")) : undefined;
+    if (ctx.config.userAuth && !user) { json(res, 401, { error: { message: "A valid gateway API key is required", type: "authentication_error", code: "invalid_api_key" } }); return; }
+    if (user) {
+      const now = Date.now();
+      if (!user.enabled || now < Date.parse(user.starts_at) || (user.expires_at && now >= Date.parse(user.expires_at))) { json(res, 401, { error: { message: "Gateway API key is outside its valid period", type: "authentication_error", code: "key_expired" } }); return; }
+      if (req.method === "POST" && user.role === "read_only") { json(res, 403, { error: { message: "This API key is read-only", type: "permission_error", code: "read_only_key" } }); return; }
+      const used = queryOne<{tokens:number}>("SELECT COALESCE(SUM(COALESCE(prompt_tokens,0)+COALESCE(completion_tokens,0)),0) AS tokens FROM request_logs WHERE user_id=?", user.id)?.tokens ?? 0;
+      if (user.token_limit !== null && used >= user.token_limit) { json(res, 429, { error: { message: "User token quota exhausted", type: "quota_error", code: "token_quota_exceeded" } }); return; }
+      (req as http.IncomingMessage & { gatewayUserId?: string }).gatewayUserId = user.id;
+      (req as http.IncomingMessage & { gatewayContextLimit?: number | null }).gatewayContextLimit = user.context_limit;
+    }
+  }
+
   if (req.method === "GET" && (path === "/health" || path === "/healthz")) {
     json(res, 200, {
       status: "ok",
@@ -186,17 +205,6 @@ async function route(
         object: "model",
         created: Math.floor(new Date(model.lastSeenAt).getTime() / 1000) || 0,
         owned_by: model.providerId,
-        metadata: {
-          upstream_id: model.upstreamId,
-          display_name: model.displayName,
-          capabilities: model.caps,
-          context_length: model.contextLength,
-          parameter_size: model.parameterSize,
-          quantization: model.quantization,
-          family: model.family,
-          size_bytes: model.sizeBytes,
-          source: model.source,
-        },
       })),
     });
     return;
@@ -204,12 +212,14 @@ async function route(
 
   if (req.method === "POST" && (path === "/v1/chat/completions" || path === "/chat/completions")) {
     const body = await readJson(req, ctx.config.bodyLimitBytes);
+    enforceUserContext(req, body);
     await handleChatCompletions(ctx, req, res, body);
     return;
   }
 
   if (req.method === "POST" && (path === "/v1/messages" || path === "/messages")) {
     const body = await readJson(req, ctx.config.bodyLimitBytes);
+    enforceUserContext(req, body);
     await handleMessages(ctx, req, res, body);
     return;
   }
@@ -219,12 +229,14 @@ async function route(
     (path === "/v1/messages/count_tokens" || path === "/messages/count_tokens")
   ) {
     const body = await readJson(req, ctx.config.bodyLimitBytes);
+    enforceUserContext(req, body);
     await handleCountTokens(ctx, req, res, body);
     return;
   }
 
   if (req.method === "POST" && (path === "/v1/embeddings" || path === "/embeddings")) {
     const body = await readJson(req, ctx.config.bodyLimitBytes);
+    enforceUserContext(req, body);
     await handleEmbeddings(ctx, req, res, body);
     return;
   }
@@ -234,4 +246,15 @@ async function route(
     status: 404,
     code: "invalid_request_error",
   });
+}
+
+function enforceUserContext(req: http.IncomingMessage, body: Record<string, unknown>): void {
+  const limit = (req as http.IncomingMessage & { gatewayContextLimit?: number | null }).gatewayContextLimit;
+  if (limit == null) return;
+  const prompt = JSON.stringify(body.messages ?? body.input ?? body.prompt ?? "");
+  const estimated = estimateTokens(prompt);
+  const output = Number(body.max_tokens ?? body.max_completion_tokens ?? 0);
+  if (estimated + (Number.isFinite(output) && output > 0 ? output : 0) > limit) {
+    throw new GatewayError({ message: `Request exceeds this user's ${limit}-token context limit`, status: 413, code: "context_length_exceeded", param: "messages" });
+  }
 }

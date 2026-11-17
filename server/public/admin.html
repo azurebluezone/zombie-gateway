@@ -907,21 +907,20 @@
         }
 
         .model-grid {
-            display: grid;
+            /* display: grid; */
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 10px;
-            padding: 11px
+            padding: 1px
         }
 
         .model-card {
             min-width: 0;
             background: #171b1e;
             border: 1px solid #30373b;
-            border-radius: 8px;
             padding: 13px;
             display: flex;
             flex-direction: column;
-            gap: 11px
+            gap: 18px
         }
 
         .model-card:hover {
@@ -1003,9 +1002,10 @@
             align-items: stretch
         }
 
-        .chat-side {
-            padding: 13px
-        }
+        .chat-side { padding: 13px }
+        .chat-layout.config-hidden { grid-template-columns: minmax(0, 1fr) }
+        .chat-layout.config-hidden .chat-side { display:none }
+        .chat-layout.config-hidden .chat-transcript { height: min(68vh, 760px) }
 
         .chat-transcript {
             height: 390px;
@@ -1164,22 +1164,11 @@
                                 <circle cx="18" cy="6" r="2.5" />
                                 <circle cx="12" cy="18" r="2.5" />
                                 <path d="M8 7.5 10.5 15M16 7.5 13.5 15M8.5 6h7" />
-                            </svg>Providers</button><button class="nav" data-view="runtime"><svg viewBox="0 0 24 24"
+                            </svg>Providers</button><button class="nav" data-view="users"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3 21a6 6 0 0 1 12 0M17 8h4m-2-2v4"/></svg>API Users</button><button class="nav" data-view="runtime"><svg viewBox="0 0 24 24"
                                 fill="none" stroke-width="1.8">
                                 <path
                                     d="M4 4h16v16H4zM8 8h8v8H8zM1 8h3m-3 8h3m16-8h3m-3 8h3M8 1v3m8-3v3m-8 16v3m8-3v3" />
                             </svg>Runtime</button>
-                    </div>
-                    <div class="nav-group">
-                        <div class="group-label">Access Management</div><button class="nav" data-view="users"><svg
-                                viewBox="0 0 24 24" fill="none" stroke-width="1.8">
-                                <circle cx="9" cy="8" r="4" />
-                                <path d="M2 21a7 7 0 0 1 14 0M17 4a4 4 0 0 1 0 8M18 15a6 6 0 0 1 4 6" />
-                            </svg>Users</button><button class="nav" data-view="roles"><svg viewBox="0 0 24 24"
-                                fill="none" stroke-width="1.8">
-                                <path d="M12 3 20 6v5c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
-                                <path d="m9 12 2 2 4-4" />
-                            </svg>Roles</button>
                     </div>
                     <div class="nav-group">
                         <div class="group-label">Observability</div><button class="nav" data-view="metrics"><svg
@@ -1198,7 +1187,7 @@
                         <div class="group-label">Tools</div><button class="nav" data-view="console"><svg
                                 viewBox="0 0 24 24" fill="none" stroke-width="1.8">
                                 <path d="m4 5 6 7-6 7M12 19h8" />
-                            </svg>API Console</button><button class="nav" data-view="settings"><svg viewBox="0 0 24 24"
+                            </svg>API Console</button><button class="nav" data-view="transport"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 5h16v14H4zM8 9l3 3-3 3m5 0h4"/></svg>Client transports</button><button class="nav" data-view="settings"><svg viewBox="0 0 24 24"
                                 fill="none" stroke-width="1.8">
                                 <circle cx="12" cy="12" r="3" />
                                 <path
@@ -1206,8 +1195,7 @@
                             </svg>Connection &amp; Auth</button>
                     </div>
                 </div>
-                <div class="side-foot">zombie-gateway admin<br><span style="color:#48545b">UI reference · static
-                        preview</span></div>
+                <div class="side-foot">zombie-gateway admin<br><span style="color:#48545b">Live gateway data</span></div>
             </aside>
             <main class="main" id="main">
                 <section class="view active" id="view-dashboard">
@@ -1223,14 +1211,13 @@
                     <div class="grid stats">
                         <div class="panel stat">
                             <div class="stat-label">Total models <span style="color:var(--green)">▦</span></div>
-                            <div class="stat-value" id="statModels">6</div>
+                            <div class="stat-value" id="statModels">—</div>
                             <div class="stat-note">Across configured providers</div>
                         </div>
                         <div class="panel stat">
                             <div class="stat-label">Active providers <span style="color:var(--green)">◉</span></div>
-                            <div class="stat-value" id="statProviders">3 <span
-                                    style="font-size:10px;color:#78858b;font-weight:500">/ 4</span></div>
-                            <div class="stat-note">One provider disabled</div>
+                            <div class="stat-value" id="statProviders">—</div>
+                            <div class="stat-note" id="statProvidersNote">Enabled / registered</div>
                         </div>
                         <div class="panel stat">
                             <div class="stat-label">Requests (1h) <span style="color:var(--blue)">⌁</span></div>
@@ -1254,7 +1241,7 @@
                             </div>
                             <div class="panel-body">
                                 <div class="kv"><span class="k">API base URL</span><span class="v mono"
-                                        id="dashBase">http://127.0.0.1:5252</span></div>
+                                        id="dashBase">http://127.0.0.1:5010</span></div>
                                 <div class="kv"><span class="k">Admin API</span><span class="v" id="dashApi"><span class="tag">Not
                                             connected</span></span></div>
                                 <div class="kv"><span class="k">Provider schema</span><span class="v">Available in API
@@ -1263,8 +1250,7 @@
                                 </div>
                                 <div class="kv"><span class="k">Logs directory</span><span class="v mono" id="dashLogDir" style="font-size:10px;word-break:break-all">—</span></div>
                                 <div class="kv"><span class="k">Busiest model (1h)</span><span class="v mono" id="dashTopModel">—</span></div>
-                                <div class="kv"><span class="k">Last update</span><span class="v" id="lastUpdate">Static
-                                        preview</span></div>
+                                <div class="kv"><span class="k">Last update</span><span class="v" id="lastUpdate">Waiting for data</span></div>
                                 <div style="display:flex;gap:7px;margin-top:13px;flex-wrap:wrap"><button
                                         class="btn green" data-go="settings">Configure connection</button><button
                                         class="btn" data-go="console">Open API Console</button></div>
@@ -1274,7 +1260,7 @@
                             <div class="panel-head">
                                 <div>
                                     <div class="panel-title">Quick actions</div>
-                                    <div class="panel-desc">Open a section or inspect a demo item</div>
+                                    <div class="panel-desc">Live gateway status and recent activity</div>
                                 </div>
                             </div>
                             <div class="panel-body">
@@ -1286,8 +1272,8 @@
                                             config</span></button><button class="quick" data-go="runtime"><span
                                             class="quick-icon">◫</span><strong>Runtime</strong><span>Review loaded model
                                             state</span></button><button class="quick" data-go="logs"><span
-                                            class="quick-icon">≡</span><strong>Request logs</strong><span>Inspect sample
-                                            request activity</span></button></div>
+                                            class="quick-icon">≡</span><strong>Request logs</strong><span>Inspect latest
+                                            recorded requests</span></button></div>
                             </div>
                         </div>
                     </div>
@@ -1334,14 +1320,14 @@
                             <option value="all">All states</option>
                             <option value="loaded">Loaded</option>
                             <option value="available">Available</option>
-                        </select><span class="tag" id="modelCount">6 models</span>
+                        </select><span class="tag" id="modelCount">Loading…</span>
                     </div>
                     <div class="panel">
                         <div class="panel-head">
                             <div>
                                 <div class="panel-title">Model catalogue</div>
                                 <div class="panel-desc">Live catalogue from GET /admin/models, including disabled providers.</div>
-                            </div><span class="tag" id="modelCountBadge">6 models</span>
+                            </div><span class="tag" id="modelCountBadge">Loading…</span>
                         </div>
                         <div class="model-grid" id="modelsGrid"></div>
                         <div class="empty" id="modelsEmpty" style="display:none">
@@ -1365,7 +1351,7 @@
                             <option value="all">All providers</option>
                             <option value="enabled">Enabled</option>
                             <option value="disabled">Disabled</option>
-                        </select><span class="tag" id="providerCount">4 providers</span>
+                        </select><span class="tag" id="providerCount">Loading…</span>
                     </div>
                     <div class="panel">
                         <div class="table-wrap" style="border:0;border-radius:7px">
@@ -1385,6 +1371,7 @@
                         </div>
                     </div>
                 </section>
+                <section class="view" id="view-users"><div class="page-head"><div><h1 class="page-title">API Users &amp; Keys</h1><div class="page-sub">Create expiring keys with context and token quotas. Keys are shown once.</div></div><button class="btn green" id="addUserBtn">＋ Create API user</button></div><div class="panel"><div class="panel-head"><div class="panel-title">Issued users</div><button class="btn small" id="usersRefresh">↻ Refresh</button></div><div class="table-wrap" style="border:0"><table><thead><tr><th>USERNAME</th><th>ROLE</th><th>VALID FROM</th><th>EXPIRES</th><th>CONTEXT</th><th>TOKENS USED / LIMIT</th><th>REQUESTS</th><th>ACTION</th></tr></thead><tbody id="usersTable"></tbody></table></div></div></section>
                 <section class="view" id="view-chat">
                     <div class="page-head">
                         <div>
@@ -1393,19 +1380,17 @@
                     </div>
                     <div class="chat-layout">
                         <div class="panel chat-side">
-                            <div class="panel-title" style="margin-bottom:12px">Test configuration</div>
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div class="panel-title">Test configuration</div><button class="btn small" id="chatHideConfig" title="Hide configuration">Hide</button></div>
                             <div class="form-row" style="margin-bottom:12px"><label>MODEL</label><select class="field"
                                     id="chatModel"></select></div>
                             <div class="form-row" style="margin-bottom:12px"><label>API BASE URL</label><input
-                                    class="field mono" id="chatBase" value="http://127.0.0.1:5252/v1"></div>
-                            <div class="form-row" style="margin-bottom:12px"><label>API KEY / TOKEN
-                                    (OPTIONAL)</label><input class="field" id="chatToken" type="password"
-                                    autocomplete="off" placeholder="Bearer token, if required"></div>
+                                    class="field mono" id="chatBase" value="http://127.0.0.1:5010/v1"></div>
+                            <div class="form-row" style="margin-bottom:12px"><label><input id="chatStream" type="checkbox" checked> STREAM RESPONSE</label></div>
                             <div class="form-row" style="margin-bottom:12px"><label>TEMPERATURE</label><input
                                     class="field" id="chatTemperature" type="number" min="0" max="2" step="0.1"
                                     value="0.7"></div>
-                            <div class="form-row" style="margin-bottom:12px"><label>MAX TOKENS</label><input
-                                    class="field" id="chatMaxTokens" type="number" min="1" max="32768" value="512">
+                            <div class="form-row" style="margin-bottom:12px"><label>MAX TOKENS (LIMIT 8192)</label><input
+                                    class="field" id="chatMaxTokens" type="number" min="1" max="8192" value="512">
                             </div><button class="btn" id="chatClear" style="width:100%">Clear conversation</button>
                     
                         </div>
@@ -1427,94 +1412,6 @@
                         </div>
                     </div>
                 </section>
-                <section class="view" id="view-users">
-                    <div class="page-head">
-                        <div>
-                            <h1 class="page-title">Users</h1>
-                        </div><button class="btn green" id="addUserBtn">＋ Add user</button>
-                    </div>
-                    <div class="toolbar">
-                        <div class="search"><input id="userSearch" placeholder="Search users, email, role…"></div>
-                        <select class="select" id="userStatus">
-                            <option value="all">All statuses</option>
-                            <option>Active</option>
-                            <option>Invited</option>
-                            <option>Disabled</option>
-                        </select>
-                    </div>
-                    <div class="panel">
-                        <div class="panel-head">
-                            <div>
-                                <div class="panel-title">User directory</div>
-                                <div class="panel-desc">Mock records · align actions consistently at row end</div>
-                            </div><span class="tag" id="userCount">3 users</span>
-                        </div>
-                        <div class="table-wrap" style="border:0;border-radius:0">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>USER</th>
-                                        <th>ROLE</th>
-                                        <th>STATUS</th>
-                                        <th>LAST ACTIVE</th>
-                                        <th style="text-align:right">ACTIONS</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="usersTable"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>
-                <section class="view" id="view-roles">
-                    <div class="page-head">
-                        <div>
-                            <h1 class="page-title">Roles &amp; Permissions</h1>
-                        </div><button class="btn green" id="addRoleBtn">＋ Add role</button>
-                    </div>
-                    <div class="grid stats" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-                        <div class="panel stat">
-                            <div class="stat-label">Defined roles</div>
-                            <div class="stat-value">3</div>
-                            <div class="stat-note">Browser-local placeholder</div>
-                        </div>
-                        <div class="panel stat">
-                            <div class="stat-label">Permission groups</div>
-                            <div class="stat-value">5</div>
-                            <div class="stat-note">Illustrative capabilities</div>
-                        </div>
-                        <div class="panel stat">
-                            <div class="stat-label">Enforced by API</div>
-                            <div class="stat-value" style="color:var(--amber)">No</div>
-                            <div class="stat-note">Backend support not documented</div>
-                        </div>
-                    </div>
-                    <div class="panel">
-                        <div class="panel-head">
-                            <div>
-                                <div class="panel-title">Role matrix</div>
-                                <div class="panel-desc">Permission assignments are mock data and do not secure
-                                    endpoints.</div>
-                            </div>
-                        </div>
-                        <div class="table-wrap" style="border:0;border-radius:0">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>ROLE</th>
-                                        <th>DESCRIPTION</th>
-                                        <th>VIEW DASHBOARD</th>
-                                        <th>MANAGE MODELS</th>
-                                        <th>MANAGE PROVIDERS</th>
-                                        <th>MANAGE USERS</th>
-                                        <th>SETTINGS</th>
-                                        <th style="text-align:right">ACTIONS</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="rolesTable"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>
                 <section class="view" id="view-runtime">
                     <div class="page-head">
                         <div>
@@ -1525,7 +1422,7 @@
                     <div class="grid stats">
                         <div class="panel stat">
                             <div class="stat-label">Loaded models</div>
-                            <div class="stat-value" id="loadedCount">2</div>
+                            <div class="stat-value" id="loadedCount">—</div>
                             <div class="stat-note">From GET /admin/runtime</div>
                         </div>
                         <div class="panel stat">
@@ -1610,9 +1507,9 @@
                             <div class="stat-note" id="statWindowNote">Window: last hour</div>
                         </div>
                         <div class="panel stat">
-                            <div class="stat-label">Total tokens</div>
+                            <div class="stat-label">Provider-reported tokens</div>
                             <div class="stat-value" id="statTokens">—</div>
-                            <div class="stat-note">Prompt + completion</div>
+                            <div class="stat-note" id="tokenMetricNote">Estimated and legacy-unknown token counts are excluded.</div>
                         </div>
                         <div class="panel stat">
                             <div class="stat-label">Error rate</div>
@@ -1769,30 +1666,33 @@
                         </div>
                         <div class="panel-body">
                             <div class="form-grid">
-                                <div class="form-row"><label>HTTP METHOD</label><select class="field" id="apiMethod">
-                                        <option>GET</option>
-                                        <option>POST</option>
-                                        <option>PATCH</option>
-                                        <option>DELETE</option>
-                                    </select></div>
-                                <div class="form-row"><label>API PATH</label><input class="field mono" id="apiPath"
-                                        value="/admin/models"></div>
+                                <div class="form-row"><label>HTTP METHOD</label><select class="field" id="apiMethod"></select></div>
+                                <div class="form-row"><label>API PATH (LIVE ROUTES)</label><input class="field mono" id="apiPath" list="apiPaths" value="/admin/models" placeholder="Select or type an API path"><datalist id="apiPaths"></datalist></div>
+                                <div class="form-row full"><div class="sub" id="apiRouteHelp">Loading API routes…</div></div>
                                 <div class="form-row full"><label>JSON BODY</label><textarea class="field mono"
                                         id="apiBody"
                                         placeholder='{"id":"ollama-local","kind":"ollama","base_url":"http://127.0.0.1:11434"}'></textarea>
                                 </div>
                                 <div class="form-row full" style="display:flex;gap:7px"><button class="btn green"
-                                        id="apiSend">Run preview</button><button class="btn"
+                                        id="apiSend">Run request</button><button class="btn"
                                         id="apiClear">Clear</button></div>
                             </div>
                             <div style="margin-top:13px">
-                                <div class="panel-title" style="margin-bottom:7px">Response preview</div>
+                                <div class="panel-title" style="margin-bottom:7px">Response</div>
                                 <div id="apiMeta" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
                                 <pre id="apiOutput" class="mono"
-                                    style="margin:0;padding:12px;background:#111517;border:1px solid #2c3236;border-radius:6px;color:#a8e8bc;white-space:pre-wrap;overflow-wrap:anywhere">No request executed. This is a static UI preview.</pre>
+                                    style="margin:0;padding:12px;background:#111517;border:1px solid #2c3236;border-radius:6px;color:#a8e8bc;white-space:pre-wrap;overflow-wrap:anywhere">No request executed.</pre>
                             </div>
                         </div>
                     </div>
+                </section>
+                <section class="view" id="view-transport">
+                    <div class="page-head"><div><h1 class="page-title">Client transports</h1><p class="sub">Copy and run examples against the current gateway address.</p></div><span class="tag green" id="transportBase"></span></div>
+                    <div class="panel"><div class="panel-head"><div class="panel-title">Choose a client</div></div><div class="panel-body">
+                        <div class="form-grid"><div class="form-row"><label>LANGUAGE / TRANSPORT</label><select class="field" id="transportChoice"><option value="curl">cURL · TCP</option><option value="python">Python · TCP</option><option value="php">PHP · TCP</option><option value="typescript">TypeScript · TCP</option><option value="uds-curl">cURL · Unix socket</option><option value="uds-python">Python · Unix socket</option><option value="uds-php">PHP · Unix socket</option><option value="uds-typescript">TypeScript · Unix socket</option></select></div><div class="form-row"><label>GATEWAY UNIX SOCKET</label><input class="field mono" id="transportSocket" value="/tmp/gateway.sock"></div></div>
+                        <p class="sub" style="margin-top:12px">Examples include model listing, non-streaming chat, streaming chat, and tool calls. Unix socket clients use the local socket path; remote clients should use TCP behind an authenticated TLS reverse proxy.</p><pre id="transportCode" class="mono" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111517;border:1px solid #30363a;padding:14px;border-radius:6px"></pre><button class="btn" id="transportCopy">Copy example</button>
+                    </div></div>
+                    <div class="panel" style="margin-top:14px"><div class="panel-head"><div class="panel-title">Register an outbound UDS provider</div></div><div class="panel-body"><p class="sub">The gateway connects to the engine socket. Use an HTTP URL for URL construction and set the actual socket path. Runtime provider sync stores the provider and discovered models in SQLite.</p><pre id="transportUdsAdmin" class="mono" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111517;border:1px solid #30363a;padding:14px;border-radius:6px"># server/.env\nCP_LLAMA_UDS_KIND=llamacpp\nCP_LLAMA_UDS_BASE_URL=http://localhost\nCP_LLAMA_UDS_TRANSPORT=uds\nCP_LLAMA_UDS_SOCKET=/run/llama/llama.sock\nCP_LLAMA_UDS_CAPS=tools\n\n# Or create through the admin API (provider and models persist in SQLite)\ncurl -X POST __GATEWAY_BASE__/admin/providers -H 'content-type: application/json' -d '{"id":"llama-uds","kind":"llamacpp","base_url":"http://localhost","transport":"uds","socket_path":"/run/llama/llama.sock","caps":["tools"]}'\ncurl -X POST __GATEWAY_BASE__/admin/providers/llama-uds/sync</pre></div></div>
                 </section>
                 <section class="view" id="view-settings">
                     <div class="page-head">
@@ -1804,13 +1704,13 @@
                         <div class="panel-head">
                             <div>
                                 <div class="panel-title">Gateway connection</div>
-                                <div class="panel-desc">Layout only — Save updates the local preview state.</div>
+                                        <div class="panel-desc">These connection settings are saved in this browser and apply to live admin requests.</div>
                             </div>
                         </div>
                         <div class="panel-body">
                             <div class="form-grid">
                                 <div class="form-row full"><label>BASE URL</label><input class="field mono" id="baseUrl"
-                                        value="http://127.0.0.1:5252"></div>
+                                        value=""></div>
                                 <div class="form-row"><label>ADMIN TOKEN (OPTIONAL)</label><input class="field"
                                         id="adminToken" type="password" autocomplete="off"
                                         placeholder="Bearer token / x-admin-token"></div>
@@ -1822,9 +1722,9 @@
                                 <div class="form-row full"><label>REQUEST TIMEOUT (MS)</label><input class="field"
                                         type="number" id="timeout" value="8000"></div>
                                 <div class="form-row full" style="display:flex;gap:7px"><button class="btn green"
-                                        id="saveSettings">Save preview settings</button><button class="btn"
+                                        id="saveSettings">Save settings</button><button class="btn"
                                         id="resetSettings">Reset</button><button class="btn" id="testConnection">Test
-                                        connection (demo)</button></div>
+                                        connection</button></div>
                             </div>
                         </div>
                     </div>
@@ -1862,7 +1762,7 @@
         // Everything below is filled from the live admin API. Nothing on this page
         // is a sample: an empty array means the gateway returned nothing.
         const state = {
-            base: localStorage.getItem('zg.base') || (location.protocol.startsWith('http') ? location.origin : 'http://127.0.0.1:5252'),
+            base: localStorage.getItem('zg.base') || (location.protocol.startsWith('http') ? location.origin : 'http://127.0.0.1:5010'),
             token: sessionStorage.getItem('zg.token') || '',
             authMode: localStorage.getItem('zg.auth') || 'bearer',
             timeout: Number(localStorage.getItem('zg.timeout')) || 15000,
@@ -1872,6 +1772,79 @@
             logTail: null, logName: localStorage.getItem('zg.logFile') || 'access'
         };
         let models = [], providers = [], requests = [], sessions = [], runtime = [], modelStats = [], loaded = new Set();
+        let apiRouteDocs = [];
+
+        async function loadApiRoutes() {
+            const response = await api('/admin/routes');
+            apiRouteDocs = response.data || [];
+            const methods = [...new Set(apiRouteDocs.map(r => r.method))].sort((a, b) => ['GET', 'POST', 'PATCH', 'DELETE'].indexOf(a) - ['GET', 'POST', 'PATCH', 'DELETE'].indexOf(b));
+            $('#apiMethod').innerHTML = methods.map(m => `<option>${esc(m)}</option>`).join('');
+            renderApiPaths();
+            applyRouteBody();
+        }
+        function renderApiPaths() {
+            const method = $('#apiMethod').value;
+            const matching = apiRouteDocs.filter(r => r.method === method);
+            const paths = matching.flatMap(r => r.path.includes(':id') && providers.length
+                ? providers.map(p => ({ ...r, path: r.path.replace(':id', encodeURIComponent(p.id)) }))
+                : [r]);
+            $('#apiPaths').innerHTML = paths.map(r => `<option value="${esc(r.path)}"></option>`).join('');
+            const exact = paths.find(r => r.path === $('#apiPath').value);
+            if (!exact && matching.length && !$('#apiPath').dataset.touched) $('#apiPath').value = matching[0].path;
+            const selected = paths.find(r => r.path === $('#apiPath').value);
+            $('#apiRouteHelp').textContent = selected ? selected.purpose + (selected.body ? ' · JSON body required' : '') : 'Custom path; use a path listed by GET /admin/routes.';
+        }
+        function applyRouteBody() {
+            const path = $('#apiPath').value;
+            const defaultModel = (models.find(m => m.id.startsWith('ollama/')) || models[0] || {}).id || 'provider/model';
+            const embeddingModel = (models.find(m => m.caps.includes('embeddings')) || {}).id || 'provider/embedding-model';
+            const samples = {
+                '/v1/chat/completions': { model: defaultModel, messages: [{ role: 'user', content: 'Say ready.' }], max_tokens: 256 },
+                '/chat/completions': { model: defaultModel, messages: [{ role: 'user', content: 'Say ready.' }], max_tokens: 256 },
+                '/v1/messages': { model: defaultModel, max_tokens: 32, messages: [{ role: 'user', content: 'Say ready.' }] },
+                '/messages': { model: defaultModel, max_tokens: 32, messages: [{ role: 'user', content: 'Say ready.' }] },
+                '/v1/messages/count_tokens': { model: defaultModel, messages: [{ role: 'user', content: 'Say ready.' }] },
+                '/messages/count_tokens': { model: defaultModel, messages: [{ role: 'user', content: 'Say ready.' }] },
+                '/v1/embeddings': { model: embeddingModel, input: 'Text to embed' },
+                '/embeddings': { model: embeddingModel, input: 'Text to embed' },
+                '/admin/providers': { id: 'provider-example', kind: 'openai', base_url: 'http://127.0.0.1:9000/v1' },
+                '/admin/models/load': { model: defaultModel, keep_alive: '5m' },
+                '/admin/models/unload': { model: defaultModel },
+            };
+            const method = $('#apiMethod').value;
+            const sample = ['POST', 'PATCH'].includes(method)
+                ? (samples[path] || (path.includes('/admin/providers/') && method === 'PATCH' ? { notes: 'Updated from API Console' } : null))
+                : null;
+            $('#apiBody').value = sample ? JSON.stringify(sample, null, 2) : '';
+        }
+        $('#apiMethod').onchange = () => { renderApiPaths(); applyRouteBody() };
+        $('#apiPath').addEventListener('input', () => { $('#apiPath').dataset.touched = '1'; renderApiPaths() });
+        $('#apiPath').addEventListener('change', () => { $('#apiPath').dataset.touched = ''; renderApiPaths(); applyRouteBody() });
+
+        const transportSamples = {
+            curl: b => `# OpenAI-compatible model list\ncurl -fsS ${b}/v1/models\n\n# Non-streaming chat\ncurl -fsS ${b}/v1/chat/completions -H 'content-type: application/json' -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"Say ready."}],"max_tokens":32}'\n\n# Streaming chat\ncurl -N ${b}/v1/chat/completions -H 'content-type: application/json' -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"Count to three."}],"stream":true}'\n\n# Tool call request\ncurl -fsS ${b}/v1/chat/completions -H 'content-type: application/json' -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"What is 2+2?"}],"tools":[{"type":"function","function":{"name":"calculator","description":"Calculate arithmetic","parameters":{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}}}],"tool_choice":"auto"}'`,
+            python: b => `from openai import OpenAI\nclient = OpenAI(base_url="${b}/v1", api_key="local")\n\n# Non-streaming\nr = client.chat.completions.create(model="ollama/lfm3:1.7b", messages=[{"role":"user","content":"Say ready."}], max_tokens=32)\nprint(r.choices[0].message.content)\n\n# Streaming\nfor part in client.chat.completions.create(model="ollama/lfm3:1.7b", messages=[{"role":"user","content":"Count to three."}], stream=True):\n    print(part.choices[0].delta.content or "", end="", flush=True)\n\n# Tool calling\nr = client.chat.completions.create(model="ollama/lfm3:1.7b", messages=[{"role":"user","content":"What is 2+2?"}], tools=[{"type":"function","function":{"name":"calculator","description":"Calculate arithmetic","parameters":{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}}}], tool_choice="auto")\nprint(r.choices[0].message.tool_calls)`,
+            php: b => `<?php\n$base = '${b}/v1/chat/completions';\n$payload = ['model'=>'ollama/lfm3:1.7b','messages'=>[['role'=>'user','content'=>'Say ready.']],'max_tokens'=>256];\n$ch = curl_init($base);\ncurl_setopt_array($ch, [CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_HTTPHEADER=>['Content-Type: application/json'], CURLOPT_POSTFIELDS=>json_encode($payload)]);\n$response = curl_exec($ch);\nif ($response === false) throw new RuntimeException(curl_error($ch));\necho json_decode($response, true)['choices'][0]['message']['content'];\ncurl_close($ch);\n?>`,
+            typescript: b => `// Vercel AI SDK\nimport { generateText, streamText } from 'ai';\nimport { createOpenAICompatible } from '@ai-sdk/openai-compatible';\n\nconst gateway = createOpenAICompatible({name:'zombie-gateway',baseURL:'${b}/v1',apiKey:'local'});\nconst result = await generateText({model:gateway('ollama/lfm3:1.7b'),prompt:'Say ready.'});\nconsole.log(result.text);\n\nconst streamed = streamText({model:gateway('ollama/lfm3:1.7b'),prompt:'Count to three.'});\nfor await (const part of streamed.textStream) process.stdout.write(part);\n\n// For function tools, use the AI SDK tools option; provider tool support is model-dependent.`,
+            'uds-curl': s => `# Model list\ncurl --unix-socket '${s}' http://localhost/v1/models\n\n# Non-streaming\ncurl --unix-socket '${s}' http://localhost/v1/chat/completions -H 'content-type: application/json' -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"Say ready."}],"max_tokens":32}'\n\n# Streaming\ncurl -N --unix-socket '${s}' http://localhost/v1/chat/completions -H 'content-type: application/json' -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"Count to three."}],"stream":true}'\n\n# Tool call\ncurl --unix-socket '${s}' http://localhost/v1/chat/completions -H 'content-type: application/json' -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"What is 2+2?"}],"tools":[{"type":"function","function":{"name":"calculator","parameters":{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}}}],"tool_choice":"auto"}'`,
+            'uds-python': s => `import httpx\nfrom openai import OpenAI\n\nhttp = httpx.Client(transport=httpx.HTTPTransport(uds='${s}'))\nclient = OpenAI(base_url='http://localhost/v1', api_key='local', http_client=http)\nprint(client.chat.completions.create(model='ollama/lfm3:1.7b', messages=[{'role':'user','content':'Say ready.'}], max_tokens=32).choices[0].message.content)\n# Set stream=True to iterate an SSE response.`,
+            'uds-php': s => `<?php\n$ch = curl_init('http://localhost/v1/chat/completions');\ncurl_setopt_array($ch, [CURLOPT_UNIX_SOCKET_PATH=>'${s}', CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_HTTPHEADER=>['Content-Type: application/json'], CURLOPT_POSTFIELDS=>json_encode(['model'=>'ollama/lfm3:1.7b','messages'=>[['role'=>'user','content'=>'Say ready.']],'max_tokens'=>256])]);\necho curl_exec($ch); curl_close($ch);\n?>`,
+            'uds-typescript': s => `import OpenAI from 'openai';\nimport { Agent, setGlobalDispatcher } from 'undici';\n\n// Node's standard fetch/OpenAI SDK does not support UDS directly. Use curl or a UDS-capable HTTP client; this gateway listener is ${s}.\n// For TypeScript, call the TCP listener or use a library that provides an undici UnixSocket dispatcher.\nconst client = new OpenAI({baseURL:'http://127.0.0.1:5010/v1',apiKey:'local'}); // TCP fallback\nconsole.log(await client.models.list());`
+        };
+        function renderTransportExample() {
+            const key = $('#transportChoice').value;
+            const isUds = key.startsWith('uds-');
+            const target = isUds ? ($('#transportSocket').value.trim() || '/tmp/gateway.sock') : state.base.replace(/\/$/, '');
+            const model = (models.find(m => m.id.startsWith('ollama/')) || models[0] || {}).id || 'provider/model';
+            $('#transportBase').textContent = (isUds ? 'UDS · local socket' : target) + ' · model ' + model;
+            $('#transportCode').textContent = transportSamples[key](target).replaceAll('ollama/lfm3:1.7b', model);
+            const udsDocs = $('#transportUdsAdmin');
+            if (!udsDocs.dataset.template) udsDocs.dataset.template = udsDocs.textContent;
+            udsDocs.textContent = udsDocs.dataset.template.replace(/__GATEWAY_BASE__/g, state.base.replace(/\/$/, ''));
+        }
+        $('#transportChoice').onchange = renderTransportExample;
+        $('#transportSocket').oninput = renderTransportExample;
+        $('#transportCopy').onclick = () => navigator.clipboard?.writeText($('#transportCode').textContent).then(() => toast('Example copied')).catch(() => toast('Clipboard unavailable'));
 
         function authHeaders() {
             const h = { accept: 'application/json' };
@@ -1912,9 +1885,10 @@
             providers = (body.data || []).map(p => ({
                 id: p.id, name: p.id, kind: p.kind, url: p.base_url, count: p.active_models || 0,
                 enabled: !!p.enabled, transport: p.transport, notes: p.notes || '',
-                lastError: p.last_error || null, source: p.source, authenticated: !!p.authenticated,
-                socket: p.socket_path || null, timeout: p.timeout_ms
+                lastError: p.last_error || null, source: p.source, authenticated: !!p.authenticated, api_key_env: p.api_key_env, default_context_length: p.default_context_length,
+                socket: p.socket_path || null, timeout: p.timeout_ms, apiKeyEnv: p.api_key_env, defaultContextLength: p.default_context_length
             }));
+            if (apiRouteDocs.length) renderApiPaths();
             renderProviders(); renderDashboard();
         }
 
@@ -1926,7 +1900,7 @@
                 upstream: m.upstream_id, family: m.family, quant: m.quantization, size: m.size_bytes,
                 source: m.source, lastSeen: m.last_seen_at, providerEnabled: !!m.provider_enabled
             }));
-            renderModels(); populateChatModels();
+            renderModels(); populateChatModels(); renderTransportExample();
         }
 
         async function loadRuntime() {
@@ -2081,12 +2055,11 @@
             $('#sidebar').classList.remove('open'); $('#main').scrollTop = 0;
             if (view === 'models') renderModels();
             if (view === 'providers') renderProviders();
+            if (view === 'users') loadUsers().catch(e => toast('Users failed: ' + e.message));
             if (view === 'runtime') { renderRuntime(); loadModelStats().catch(() => { }); }
             if (view === 'logs') { renderLogs(); loadLogFile().catch(() => { }); }
             if (view === 'sessions') renderSessions();
             if (view === 'activity') renderActivity();
-            if (view === 'users') renderUsers();
-            if (view === 'roles') renderRoles();
             if (view === 'chat') populateChatModels();
             if (view === 'metrics') renderMetrics();
             if (view === 'dashboard') renderDashboard();
@@ -2116,8 +2089,9 @@
 
         function modelDetail(id) {
             const m = models.find(x => x.id === id); if (!m) return;
-            openModal('Model details', `<div class="detail-grid"><div class="detail-cell" style="grid-column:span 2"><div class="k">MODEL ID</div><div class="v mono">${esc(m.id)}</div></div><div class="detail-cell"><div class="k">PROVIDER</div><div class="v">${esc(m.provider)}</div></div><div class="detail-cell"><div class="k">KIND</div><div class="v">${esc(m.kind)}</div></div><div class="detail-cell"><div class="k">CONTEXT</div><div class="v">${esc(m.context)}</div></div><div class="detail-cell"><div class="k">STATE</div><div class="v">${loaded.has(m.id) ? 'Loaded' : 'Available'}</div></div><div class="detail-cell" style="grid-column:span 2"><div class="k">UPSTREAM ID</div><div class="v mono">${esc(m.upstream)}</div></div><div class="detail-cell"><div class="k">FAMILY</div><div class="v">${esc(m.family || '—')}</div></div><div class="detail-cell"><div class="k">QUANT</div><div class="v">${esc(m.quant || '—')}</div></div><div class="detail-cell"><div class="k">SIZE</div><div class="v">${m.size ? Math.round(m.size / 1024 / 1024) + ' MB' : '—'}</div></div><div class="detail-cell"><div class="k">CAPABILITIES</div><div class="v">${esc(m.caps.join(', ') || '—')}</div></div><div class="detail-cell"><div class="k">LAST SEEN</div><div class="v">${esc(rel(m.lastSeen))}</div></div></div>`,
+            openModal('Model details', `<div class="detail-grid"><div class="detail-cell" style="grid-column:span 2"><div class="k">MODEL ID</div><div class="v mono">${esc(m.id)}</div></div><div class="detail-cell"><div class="k">PROVIDER</div><div class="v">${esc(m.provider)}</div></div><div class="detail-cell"><div class="k">KIND</div><div class="v">${esc(m.kind)}</div></div><div class="detail-cell"><div class="k">CONTEXT WINDOW</div><div class="v">${esc(m.context)}</div><div style="display:flex;gap:6px;margin-top:8px"><input class="field" id="modelContextEdit" type="number" min="1" placeholder="Tokens" value="${m.contextLength || ''}"><button class="btn small" id="saveModelContext">Save</button></div></div><div class="detail-cell"><div class="k">STATE</div><div class="v">${loaded.has(m.id) ? 'Loaded' : 'Available'}</div></div><div class="detail-cell" style="grid-column:span 2"><div class="k">UPSTREAM ID</div><div class="v mono">${esc(m.upstream)}</div></div><div class="detail-cell"><div class="k">FAMILY</div><div class="v">${esc(m.family || '—')}</div></div><div class="detail-cell"><div class="k">QUANT</div><div class="v">${esc(m.quant || '—')}</div></div><div class="detail-cell"><div class="k">SIZE</div><div class="v">${m.size ? Math.round(m.size / 1024 / 1024) + ' MB' : '—'}</div></div><div class="detail-cell"><div class="k">CAPABILITIES</div><div class="v">${esc(m.caps.join(', ') || '—')}</div></div><div class="detail-cell"><div class="k">LAST SEEN</div><div class="v">${esc(rel(m.lastSeen))}</div></div></div>`,
                 [{ label: loaded.has(m.id) ? 'Unload model' : 'Load model', cls: loaded.has(m.id) ? 'danger' : 'green', fn: () => { toggleModel(m.id); closeModal() } }]);
+            $('#saveModelContext').onclick = async () => { const raw = $('#modelContextEdit').value; try { const v = raw ? Number(raw) : null; await api('/admin/models/context', { method: 'PATCH', body: JSON.stringify({ model: m.id, context_length: v }) }); m.contextLength = v; m.context = ctxLabel(v); renderModels(); toast('Context window saved'); } catch(e) { toast('Context save failed: ' + e.message) } };
         }
 
         async function toggleModel(id) {
@@ -2130,16 +2104,20 @@
             renderModels();
         }
 
+        async function loadUsers() { const data = await api('/admin/users'); $('#usersTable').innerHTML = (data.data || []).map(u => `<tr><td>${esc(u.username)}<div class="item-sub mono">${esc(u.api_key_prefix)}…</div></td><td>${esc(u.role)}</td><td>${esc(new Date(u.starts_at).toLocaleString())}</td><td>${esc(u.expires_at ? new Date(u.expires_at).toLocaleString() : 'Never')}</td><td>${esc(u.context_limit || 'Model default')}</td><td>${num(u.tokens_used)} / ${esc(u.token_limit || 'Unlimited')}</td><td>${num(u.requests)}</td><td><button class="btn small danger" data-user-disable="${esc(u.id)}" ${u.enabled ? '' : 'disabled'}>Disable</button></td></tr>`).join('') || '<tr><td colspan="8">No API users yet</td></tr>'; $$('[data-user-disable]').forEach(b => b.onclick = async () => { try { await api('/admin/users/' + encodeURIComponent(b.dataset.userDisable), {method:'DELETE'}); await loadUsers() } catch(e) { toast(e.message) } }) }
+        function userForm() { openModal('Create API user', `<div class="form-grid"><div class="form-row"><label>USERNAME</label><input class="field" id="ufName"></div><div class="form-row"><label>ROLE</label><select class="field" id="ufRole"><option value="inference">Inference</option><option value="read_only">Read only</option></select></div><div class="form-row"><label>STARTS AT (OPTIONAL)</label><input class="field" id="ufStart" type="datetime-local"></div><div class="form-row"><label>EXPIRES AT (OPTIONAL)</label><input class="field" id="ufExpiry" type="datetime-local"></div><div class="form-row"><label>CONTEXT TOKEN LIMIT</label><input class="field" id="ufContext" type="number" min="1" placeholder="No extra cap"></div><div class="form-row"><label>TOTAL TOKEN QUOTA</label><input class="field" id="ufTokens" type="number" min="1" placeholder="Unlimited"></div></div>`, [{label:'Create key',cls:'green',fn:async()=>{ const toIso=id=>$('#'+id).value?new Date($('#'+id).value).toISOString():null; const body={username:$('#ufName').value.trim(),role:$('#ufRole').value,starts_at:toIso('ufStart'),expires_at:toIso('ufExpiry'),context_limit:$('#ufContext').value?Number($('#ufContext').value):null,token_limit:$('#ufTokens').value?Number($('#ufTokens').value):null}; try { const created=await api('/admin/users',{method:'POST',body:JSON.stringify(body)}); closeModal(); openModal('Copy this API key now', `<p class="sub">This secret is displayed once. Store it securely before closing.</p><textarea class="field mono" id="newUserKey" rows="3" readonly>${esc(created.api_key)}</textarea><button class="btn small" id="copyUserKey">Copy key</button>`,[]); $('#copyUserKey').onclick=()=>navigator.clipboard.writeText(created.api_key).then(()=>toast('API key copied')); await loadUsers() } catch(e) { toast('Create user failed: '+e.message) } }}]) }
+
         function renderProviders() {
             const q = ($('#providerSearch')?.value || '').toLowerCase();
             const f = $('#providerFilter')?.value || 'all';
             const list = providers.filter(p => (p.id + ' ' + p.kind + ' ' + p.url).toLowerCase().includes(q) && (f === 'all' || (f === 'enabled' ? p.enabled : !p.enabled)));
-            $('#providersTable').innerHTML = list.map(p => `<tr><td><div class="item-name">${esc(p.id)}</div><div class="item-sub mono">${esc(p.source || 'env')}${p.lastError ? ' · ' + esc(p.lastError) : ''}</div></td><td><span class="tag">${esc(p.kind)}</span></td><td class="mono" style="font-size:9px">${esc(p.url)}${p.socket ? '<br>' + esc(p.socket) : ''}</td><td>${p.count} model${p.count === 1 ? '' : 's'}</td><td>${p.enabled ? '<span class="tag green"><span class="dot"></span> Enabled</span>' : '<span class="tag red">Disabled</span>'}</td><td><div class="row-actions"><button class="btn small" data-provider-detail="${esc(p.id)}">View</button><button class="btn small" data-provider-edit="${esc(p.id)}">Edit</button><button class="btn small" data-provider-toggle="${esc(p.id)}">${p.enabled ? 'Disable' : 'Enable'}</button><button class="btn small" data-provider-sync="${esc(p.id)}">Sync</button></div></td></tr>`).join('') || '<tr><td colspan="6"><div class="empty">No providers match this filter.</div></td></tr>';
+            $('#providersTable').innerHTML = list.map(p => `<tr><td><div class="item-name">${esc(p.id)}</div><div class="item-sub mono">${esc(p.source || 'env')}${p.lastError ? ' · ' + esc(p.lastError) : ''}</div></td><td><span class="tag">${esc(p.kind)}</span></td><td class="mono" style="font-size:9px">${esc(p.url)}${p.socket ? '<br>' + esc(p.socket) : ''}</td><td>${p.count} model${p.count === 1 ? '' : 's'}</td><td>${p.enabled ? '<span class="tag green"><span class="dot"></span> Enabled</span>' : '<span class="tag red">Disabled</span>'}</td><td><div class="row-actions"><button class="btn small" data-provider-detail="${esc(p.id)}">View</button><button class="btn small" data-provider-edit="${esc(p.id)}">Edit</button><button class="btn small" data-provider-toggle="${esc(p.id)}">${p.enabled ? 'Disable' : 'Enable'}</button><button class="btn small" data-provider-sync="${esc(p.id)}">Sync</button>${p.source === 'admin' ? `<button class="btn small danger" data-provider-delete="${esc(p.id)}">Delete</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="6"><div class="empty">No providers match this filter.</div></td></tr>';
             $('#providerCount').textContent = list.length + ' provider' + (list.length === 1 ? '' : 's');
             $$('[data-provider-detail]').forEach(b => b.onclick = () => providerDetail(b.dataset.providerDetail));
             $$('[data-provider-edit]').forEach(b => b.onclick = () => providerForm(b.dataset.providerEdit));
             $$('[data-provider-toggle]').forEach(b => b.onclick = () => toggleProvider(b.dataset.providerToggle));
             $$('[data-provider-sync]').forEach(b => b.onclick = () => syncProvider(b.dataset.providerSync));
+            $$('[data-provider-delete]').forEach(b => b.onclick = () => deleteProvider(b.dataset.providerDelete));
         }
 
         function providerDetail(id) {
@@ -2156,6 +2134,8 @@
             } catch (e) { toast('Provider action failed: ' + e.message) }
         }
 
+        async function deleteProvider(id) { if (!confirm('Delete provider ' + id + ' and its catalog models?')) return; try { await api('/admin/providers/' + encodeURIComponent(id) + '?purge=1', {method:'DELETE'}); toast('Provider deleted'); await loadProviders(); await loadModels() } catch(e) { toast('Delete failed: ' + e.message) } }
+
         async function syncProvider(id) {
             try {
                 const report = await api('/admin/providers/' + encodeURIComponent(id) + '/sync', { method: 'POST' });
@@ -2165,8 +2145,8 @@
         }
 
         function providerForm(id) {
-            const p = id ? providers.find(x => x.id === id) : { id: '', kind: 'ollama', url: 'http://127.0.0.1:11434', transport: 'http', notes: '', enabled: true };
-            openModal(id ? 'Edit provider' : 'Add provider', `<div class="form-grid"><div class="form-row"><label>PROVIDER ID</label><input class="field" id="pfId" value="${esc(p.id)}" ${id ? 'readonly' : ''}></div><div class="form-row"><label>KIND</label><select class="field" id="pfKind">${['ollama', 'llamacpp', 'openai', 'opencode'].map(k => `<option ${p.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div><div class="form-row"><label>TRANSPORT</label><select class="field" id="pfTransport">${['http', 'https', 'uds'].map(t => `<option ${p.transport === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div><div class="form-row"><label>TIMEOUT (MS)</label><input class="field" id="pfTimeout" type="number" value="${p.timeout || 600000}"></div><div class="form-row full"><label>BASE URL</label><input class="field mono" id="pfUrl" value="${esc(p.url)}"></div><div class="form-row full"><label>NOTES</label><input class="field" id="pfNotes" value="${esc(p.notes)}"></div><div class="form-row full"><label><input type="checkbox" id="pfEnabled" ${p.enabled ? 'checked' : ''}> Enabled</label></div></div><p class="sub" style="margin-top:12px">Writes to the gateway database through POST/PATCH /admin/providers.</p>`,
+            const p = id ? providers.find(x => x.id === id) : { id: '', kind: 'openai', url: 'https://api.example.com/v1', transport: 'http', notes: '', enabled: true };
+            openModal(id ? 'Edit provider' : 'Add provider', `<div class="form-grid"><div class="form-row"><label>PROVIDER ID</label><input class="field" id="pfId" value="${esc(p.id)}" ${id ? 'readonly' : ''}></div><div class="form-row"><label>KIND</label><select class="field" id="pfKind">${['ollama', 'llamacpp', 'openai', 'opencode'].map(k => `<option ${p.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div><div class="form-row"><label>TRANSPORT</label><select class="field" id="pfTransport">${['http', 'https', 'uds'].map(t => `<option ${p.transport === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div><div class="form-row"><label>TIMEOUT (MS)</label><input class="field" id="pfTimeout" type="number" value="${p.timeout || 600000}"></div><div class="form-row full"><label>BASE URL</label><input class="field mono" id="pfUrl" value="${esc(p.url)}"></div><div class="form-row"><label>API KEY ENV VAR (OPTIONAL)</label><input class="field mono" id="pfApiKeyEnv" value="${esc(p.apiKeyEnv || '')}" placeholder="e.g. CUSTOM_OPENAI_KEY"></div><div class="form-row"><label>DEFAULT CONTEXT TOKENS</label><input class="field" id="pfContext" type="number" min="1" value="${p.defaultContextLength || ''}"></div><div class="form-row full"><label>NOTES</label><input class="field" id="pfNotes" value="${esc(p.notes)}"></div><div class="form-row full"><label><input type="checkbox" id="pfEnabled" ${p.enabled ? 'checked' : ''}> Enabled</label></div></div><p class="sub" style="margin-top:12px">Writes to the gateway database through POST/PATCH /admin/providers.</p>`,
                 [{ label: id ? 'Save provider' : 'Create provider', cls: 'green', fn: () => saveProvider(id) }]);
         }
 
@@ -2174,7 +2154,7 @@
             const payload = {
                 kind: $('#pfKind').value, transport: $('#pfTransport').value,
                 base_url: $('#pfUrl').value.trim(), timeout_ms: Number($('#pfTimeout').value) || 600000,
-                notes: $('#pfNotes').value.trim(), enabled: $('#pfEnabled').checked
+                notes: $('#pfNotes').value.trim(), enabled: $('#pfEnabled').checked, api_key_env: $('#pfApiKeyEnv').value.trim() || null, default_context_length: $('#pfContext').value ? Number($('#pfContext').value) : null
             };
             if (!payload.base_url) { toast('Base URL is required'); return }
             try {
@@ -2237,7 +2217,7 @@
                     <td>${r.errors ? `<span class="tag red" title="HTTP >= 400, client aborts excluded">${num(r.errors)}</span>` : '<span class="tag green">0</span>'}</td>
                     <td class="mono">${r.avg_ms === null ? '—' : ms(r.avg_ms)}</td>
                     <td class="mono">${r.max_ms === null ? '—' : ms(r.max_ms)}</td>
-                    <td class="mono">${tokens ? num(tokens) : '—'}<div class="item-sub">${num(r.prompt_tokens || 0)} in · ${num(r.completion_tokens || 0)} out</div></td>
+                    <td class="mono">${tokens ? num(tokens) : '—'}<div class="item-sub">reported · ${num(r.prompt_tokens || 0)} in / ${num(r.completion_tokens || 0)} out</div><div class="item-sub">estimate ${num((r.estimated_prompt_tokens || 0) + (r.estimated_completion_tokens || 0))}</div></td>
                     <td>${r.last_ts ? esc(rel(r.last_ts)) : '—'}<div class="item-sub mono">${r.last_ts ? esc(clock(r.last_ts)) : ''}</div></td>
                     <td><div class="row-actions"><button class="btn small" data-model-test="${esc(r.id)}">Test</button><button class="btn small" data-model-log="${esc(r.id)}">Logs</button></div></td>
                 </tr>`;
@@ -2316,6 +2296,7 @@
             const totals = (state.metrics && state.metrics.totals) || null;
             $('#statModels').textContent = models.filter(m => m.providerEnabled).length;
             $('#statProviders').innerHTML = providers.filter(p => p.enabled).length + ' <span style="font-size:10px;color:#78858b;font-weight:500">/ ' + providers.length + '</span>';
+            $('#statProvidersNote').textContent = providers.filter(p => p.enabled).length + ' enabled · ' + providers.length + ' registered';
             $('#statRequests').textContent = totals ? num(totals.calls) : '—';
             $('#statRequestsNote').textContent = totals ? 'Last hour · ' + num(totals.errors) + ' errors · ' + num(totals.aborted) + ' aborted' : 'Waiting for gateway…';
             $('#lastUpdate').textContent = state.lastUpdate ? state.lastUpdate.toLocaleTimeString() : 'never';
@@ -2349,6 +2330,10 @@
             $('#statErrorRate').textContent = totals && calls ? ((errors / calls) * 100).toFixed(1) + '%' : '0.0%';
             $('#statAvgLatency').innerHTML = totals && totals.avg_ms !== null ? totals.avg_ms + '<span style="font-size:11px;color:#89949b"> ms</span>' : '—';
             $('#statWindowNote').textContent = m ? 'Window: ' + Math.round(m.window_ms / 60000) + ' min' : 'Window: last hour';
+            if ($('#tokenMetricNote')) {
+                const estimated = totals ? (totals.estimated_prompt_tokens + totals.estimated_completion_tokens) : 0;
+                $('#tokenMetricNote').textContent = num(estimated) + ' estimated tokens shown separately in model stats; legacy-unknown excluded.';
+            }
             const buckets = (m && m.buckets ? [...m.buckets].reverse() : []);
             const peak = Math.max(1, ...buckets.map(b => b.calls));
             $('#chartBars').innerHTML = buckets.length
@@ -2356,67 +2341,38 @@
                 : '<div class="empty" style="margin:auto">No requests in this window.</div>';
         }
 
-        // --------------------------------------------------- users and roles ---
-        // The gateway API has no user or role endpoints. These two views stay
-        // local-only on purpose; labelling them keeps the dashboard honest.
-        const userRecords = [{ name: 'Admin Operator', email: 'admin@local.test', role: 'Administrator', status: 'Active', last: 'Now' }];
-        const roleRecords = [{ name: 'Administrator', desc: 'Full access (local placeholder)', perms: [1, 1, 1, 1, 1] }, { name: 'Operator', desc: 'Operate models and providers', perms: [1, 1, 1, 0, 0] }, { name: 'Viewer', desc: 'Read-only dashboard access', perms: [1, 0, 0, 0, 0] }];
-        function renderUsers() { const q = ($('#userSearch')?.value || '').toLowerCase(), f = $('#userStatus')?.value || 'all', list = userRecords.filter(u => (u.name + ' ' + u.email + ' ' + u.role).toLowerCase().includes(q) && (f === 'all' || u.status === f)); $('#usersTable').innerHTML = list.map(u => `<tr><td><div class="item-name">${esc(u.name)}</div><div class="item-sub">${esc(u.email)}</div></td><td>${esc(u.role)}</td><td><span class="tag ${u.status === 'Active' ? 'green' : u.status === 'Disabled' ? 'red' : 'amber'}">${esc(u.status)}</span></td><td>${esc(u.last)}</td><td><div class="admin-table-actions"><button class="btn small" data-user-edit="${userRecords.indexOf(u)}">Edit</button></div></td></tr>`).join('') || '<tr><td colspan="5"><div class="empty">No users match this filter.</div></td></tr>'; $('#userCount').textContent = list.length + ' users'; $$('[data-user-edit]').forEach(b => b.onclick = () => userForm(Number(b.dataset.userEdit))) }
-        function userForm(index) { const u = index >= 0 ? userRecords[index] : { name: '', email: '', role: 'Viewer', status: 'Invited', last: 'Never' }; openModal(index >= 0 ? 'Edit user' : 'Add user', `<div class="form-grid"><div class="form-row"><label>DISPLAY NAME</label><input class="field" id="ufName" value="${esc(u.name)}"></div><div class="form-row"><label>EMAIL</label><input class="field" id="ufEmail" type="email" value="${esc(u.email)}"></div><div class="form-row"><label>ROLE</label><select class="field" id="ufRole">${['Administrator', 'Operator', 'Viewer'].map(r => `<option ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div><div class="form-row"><label>STATUS</label><select class="field" id="ufStatus">${['Active', 'Invited', 'Disabled'].map(r => `<option ${u.status === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div></div><p class="sub" style="margin-top:12px">The gateway API has no user endpoints; this stays browser-local.</p>`, [{ label: 'Save locally', cls: 'green', fn: () => { const data = { ...u, name: $('#ufName').value.trim(), email: $('#ufEmail').value.trim(), role: $('#ufRole').value, status: $('#ufStatus').value }; if (!data.name || !data.email) { toast('Name and email are required'); return } if (index >= 0) userRecords[index] = data; else userRecords.push(data); closeModal(); renderUsers(); toast('Saved in this browser only') } }]) }
-        function renderRoles() { $('#rolesTable').innerHTML = roleRecords.map((r, i) => `<tr><td><div class="item-name">${esc(r.name)}</div></td><td>${esc(r.desc)}</td>${r.perms.map(v => `<td><span class="tag ${v ? 'green' : ''}">${v ? 'Allowed' : '—'}</span></td>`).join('')}<td><div class="admin-table-actions"><button class="btn small" data-role-edit="${i}">Edit</button></div></td></tr>`).join(''); $$('[data-role-edit]').forEach(b => b.onclick = () => roleForm(Number(b.dataset.roleEdit))) }
-        function roleForm(index) { const r = index >= 0 ? roleRecords[index] : { name: '', desc: '', perms: [1, 0, 0, 0, 0] }; openModal(index >= 0 ? 'Edit role' : 'Add role', `<div class="form-grid"><div class="form-row"><label>ROLE NAME</label><input class="field" id="rfName" value="${esc(r.name)}"></div><div class="form-row"><label>DESCRIPTION</label><input class="field" id="rfDesc" value="${esc(r.desc)}"></div>${['View dashboard', 'Manage models', 'Manage providers', 'Manage users', 'Settings'].map((p, i) => `<div class="form-row"><label><input type="checkbox" id="rfPerm${i}" ${r.perms[i] ? 'checked' : ''}> ${p}</label></div>`).join('')}</div><p class="sub" style="margin-top:12px">Browser-local placeholder; the backend does not enforce RBAC.</p>`, [{ label: 'Save locally', cls: 'green', fn: () => { const data = { name: $('#rfName').value.trim(), desc: $('#rfDesc').value.trim(), perms: [0, 1, 2, 3, 4].map(i => $('#rfPerm' + i).checked ? 1 : 0) }; if (!data.name) { toast('Role name is required'); return } if (index >= 0) roleRecords[index] = data; else roleRecords.push(data); closeModal(); renderRoles(); toast('Saved in this browser only') } }]) }
-
         // ------------------------------------------------------------- chat ---
         function populateChatModels() { const sel = $('#chatModel'); if (!sel) return; const old = sel.value; sel.innerHTML = models.map(m => `<option value="${esc(m.id)}">${esc(m.id)}</option>`).join('') || '<option value="">no models</option>'; if (models.some(m => m.id === old)) sel.value = old }
         const chatMessages = [];
-        function paintChat() { const box = $('#chatTranscript'); box.innerHTML = chatMessages.length ? chatMessages.map(m => `<div class="chat-msg ${m.role === 'user' ? 'user' : 'assistant'}">${esc(m.content)}</div>`).join('') : '<div class="chat-empty"><strong>Ready to test a model</strong>Select a model, enter a prompt, and send it. The response will appear here.</div>'; box.scrollTop = box.scrollHeight }
+        function paintChat() { const box = $('#chatTranscript'); box.innerHTML = chatMessages.length ? chatMessages.map(m => `<div class="chat-msg ${m.role === 'user' ? 'user' : 'assistant'}">${esc(m.content || '')}</div>`).join('') : '<div class="chat-empty"><strong>Ready to test a model</strong>Select a model, enter a prompt, and send it. The response will appear here.</div>'; box.scrollTop = box.scrollHeight }
         async function sendChat() {
             const prompt = $('#chatPrompt').value.trim(); if (!prompt) return;
-            const base = $('#chatBase').value.trim().replace(/\/$/, '');
-            const model = $('#chatModel').value;
+            const base = $('#chatBase').value.trim().replace(/\/$/, ''), model = $('#chatModel').value;
             if (!/^https?:\/\//i.test(base)) { toast('Enter a valid API base URL'); return }
-            chatMessages.push({ role: 'user', content: prompt });
-            $('#chatPrompt').value = ''; paintChat(); $('#chatSend').disabled = true; $('#chatStatus').textContent = 'Request in progress…';
-            metaChips('#chatMeta', []);
-            const waiting = { role: 'assistant', content: 'Waiting for model response…' };
-            chatMessages.push(waiting); paintChat();
+            chatMessages.push({ role: 'user', content: prompt }); $('#chatPrompt').value = ''; paintChat(); $('#chatSend').disabled = true; $('#chatStatus').textContent = 'Request in progress…'; metaChips('#chatMeta', []);
+            const waiting = { role: 'assistant', content: '' }; chatMessages.push(waiting); paintChat();
+            const started = performance.now();
             try {
-                const token = $('#chatToken').value.trim();
-                const body = { model, messages: chatMessages.filter(m => m !== waiting).map(m => ({ role: m.role, content: m.content })), temperature: Math.max(0, Math.min(2, Number($('#chatTemperature').value) || 0)), max_tokens: Math.max(1, Number($('#chatMaxTokens').value) || 512) };
-                const headers = { 'Content-Type': 'application/json' };
-                if (token) headers.Authorization = 'Bearer ' + token;
-                const started = performance.now();
-                const response = await fetch(base + '/chat/completions', { method: 'POST', headers, body: JSON.stringify(body) });
-                const elapsed = performance.now() - started;
+                const body = { model, messages: chatMessages.filter(m => m !== waiting).map(m => ({ role: m.role, content: m.content })), temperature: Math.max(0, Math.min(2, Number($('#chatTemperature').value) || 0)), max_tokens: Math.min(8192, Math.max(1, Number($('#chatMaxTokens').value) || 512)), stream: $('#chatStream').checked };
+                const response = await fetch(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                 const requestId = response.headers.get('x-request-id');
-                const errorCode = response.headers.get('x-error-code');
-                const raw = await response.text();
-                let data; try { data = JSON.parse(raw) } catch { data = { raw } }
-                if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + (data.error?.message || data.message || raw.slice(0, 500)));
-                const answer = data.choices?.[0]?.message?.content;
-                if (typeof answer !== 'string') throw new Error('Response did not contain choices[0].message.content');
-                waiting.content = answer;
-                const tokens = data.usage?.total_tokens;
-                $('#chatStatus').textContent = 'Success · HTTP ' + response.status + ' · ' + Math.round(elapsed) + ' ms' + (tokens ? ' · ' + tokens + ' tokens' : '');
-                metaChips('#chatMeta', [
-                    { label: 'HTTP ' + response.status, tone: 'green' },
-                    { label: Math.round(elapsed) + ' ms' },
-                    { label: model },
-                    tokens ? { label: num(tokens) + ' tokens' } : null,
-                    requestId ? { label: 'req ' + requestId.slice(0, 8) } : null
-                ]);
-                loadRequests().catch(() => { });
-                loadModelStats().catch(() => { });
-            } catch (e) {
-                waiting.content = 'Request failed: ' + e.message + '\n\nCheck that the gateway is running, the model ID is valid, and CORS/auth settings permit this browser request.';
-                $('#chatStatus').textContent = 'Request failed · see response';
-                metaChips('#chatMeta', [{ label: 'failed', tone: 'red' }, { label: model }]);
-            } finally { $('#chatSend').disabled = false; paintChat() }
+                if (!response.ok) { const raw = await response.text(); let data; try { data = JSON.parse(raw) } catch { data = { raw } } throw new Error('HTTP ' + response.status + ': ' + (data.error?.message || data.message || raw.slice(0, 500))) }
+                let tokens = null, reasoningTokens = null;
+                if (body.stream) {
+                    const reader = response.body.getReader(), decoder = new TextDecoder(); let pending = '';
+                    while (true) { const { value, done } = await reader.read(); pending += decoder.decode(value || new Uint8Array(), { stream: !done }); const events = pending.split(/\n\n/); pending = events.pop() || ''; for (const event of events) { const line = event.split(/\r?\n/).find(x => x.startsWith('data:')); if (!line) continue; const raw = line.slice(5).trim(); if (raw === '[DONE]') continue; const chunk = JSON.parse(raw), delta = chunk.choices?.[0]?.delta || {}; waiting.content += delta.content || ''; if (chunk.usage?.total_tokens) tokens = chunk.usage.total_tokens; const rt = chunk.usage?.completion_tokens_details?.reasoning_tokens; if (Number.isInteger(rt)) reasoningTokens = rt; paintChat() } if (done) break }
+                } else { const data = await response.json(), message = data.choices?.[0]?.message; if (!message) throw new Error('Response did not contain choices[0].message'); waiting.content = typeof message.content === 'string' ? message.content : '';  tokens = data.usage?.total_tokens || null; reasoningTokens = Number.isInteger(data.usage?.completion_tokens_details?.reasoning_tokens) ? data.usage.completion_tokens_details.reasoning_tokens : null }
+                if (!waiting.content) throw new Error('Response contained no assistant content');
+                const elapsed = performance.now() - started; $('#chatStatus').textContent = 'Success · HTTP ' + response.status + ' · ' + Math.round(elapsed) + ' ms' + (tokens ? ' · ' + tokens + ' tokens' : '');
+                metaChips('#chatMeta', [{ label: 'HTTP ' + response.status, tone: 'green' }, { label: Math.round(elapsed) + ' ms' }, { label: body.stream ? 'stream' : 'non-stream' }, { label: model }, tokens ? { label: num(tokens) + ' tokens' } : null, reasoningTokens !== null ? { label: num(reasoningTokens) + ' reasoning tokens' } : null, requestId ? { label: 'req ' + requestId.slice(0, 8) } : null]); loadRequests().catch(() => {}); loadModelStats().catch(() => {});
+            } catch (e) { waiting.content = 'Request failed: ' + e.message; $('#chatStatus').textContent = 'Request failed · see response'; metaChips('#chatMeta', [{ label: 'failed', tone: 'red' }, { label: model }]); }
+            finally { $('#chatSend').disabled = false; paintChat() }
         }
+        $('#chatHideConfig').onclick = () => { const layout = document.querySelector('.chat-layout'); layout.classList.toggle('config-hidden'); $('#chatHideConfig').textContent = layout.classList.contains('config-hidden') ? 'Show' : 'Hide' };
         $('#chatSend').onclick = sendChat;
         $('#chatPrompt').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendChat() } });
         $('#chatClear').onclick = () => { chatMessages.length = 0; paintChat(); metaChips('#chatMeta', []); $('#chatStatus').textContent = 'Conversation cleared' };
-        $('#chatExport').onclick = () => { const transcript = chatMessages.map(m => m.role.toUpperCase() + ': ' + m.content).join('\n\n'); if (!transcript) { toast('No messages to copy'); return } navigator.clipboard?.writeText(transcript).then(() => toast('Transcript copied')).catch(() => toast('Clipboard permission unavailable')) };
+        $('#chatExport').onclick = async () => { const plain = chatMessages.map(m => m.role.toUpperCase() + ':\n' + m.content).join('\n\n'); if (!plain.trim()) { toast('No messages to copy'); return } const html = '<article>' + chatMessages.map(m => `<section><h3>${esc(m.role.toUpperCase())}</h3><pre>${esc(m.content)}</pre></section>`).join('') + '</article>'; try { if (navigator.clipboard?.write && window.ClipboardItem) await navigator.clipboard.write([new ClipboardItem({'text/html': new Blob([html], {type:'text/html'}), 'text/plain': new Blob([plain], {type:'text/plain'})})]); else await navigator.clipboard.writeText(plain); toast('Transcript copied in rich format for Canvas/paste') } catch { toast('Clipboard permission unavailable') } };
 
         // ----------------------------------------------------------- modals ---
         function openModal(title, body, actions = []) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = body; const foot = $('#modalFoot'); foot.innerHTML = '<button class="btn" id="modalCancel">Close</button>'; $('#modalCancel').onclick = closeModal; actions.forEach(a => { const b = document.createElement('button'); b.className = 'btn ' + (a.cls || ''); b.textContent = a.label; b.onclick = a.fn; foot.appendChild(b) }); $('#modalBackdrop').classList.add('open') }
@@ -2436,11 +2392,11 @@
         $('#providerSearch').oninput = renderProviders;
         $('#providerFilter').onchange = renderProviders;
         $('#logSearch').oninput = renderLogs;
-        $('#userSearch').oninput = renderUsers;
-        $('#userStatus').onchange = renderUsers;
         $('#modelRefresh').onclick = () => loadModels().then(() => toast('Catalogue refreshed')).catch(e => toast('Refresh failed: ' + e.message));
         $('#loadModelTop').onclick = () => { go('models'); openModal('Load model', `<div class="form-row"><label>SELECT MODEL</label><select class="field" id="loadChoice">${models.map(m => `<option value="${esc(m.id)}">${esc(m.id)}</option>`).join('')}</select></div><p class="sub" style="margin-top:10px">POST /admin/models/load</p>`, [{ label: 'Load selected', cls: 'green', fn: () => { toggleModel($('#loadChoice').value); closeModal() } }]) };
         $('#addProviderBtn').onclick = () => providerForm();
+        $('#addUserBtn').onclick = userForm;
+        $('#usersRefresh').onclick = () => loadUsers().then(() => toast('Users refreshed')).catch(e => toast(e.message));
         $('#schemaBtn').onclick = () => api('/admin/providers/schema').then(schema => openModal('Provider schema', `<pre class="mono" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111517;border:1px solid #30363a;padding:12px;border-radius:6px;color:#b8e7c7">${esc(JSON.stringify(schema, null, 2))}</pre>`)).catch(e => toast('Schema failed: ' + e.message));
         $('#syncAllBtn').onclick = async () => { try { const r = await api('/admin/sync', { method: 'POST' }); toast('Sync: ' + (r.data || []).filter(x => x.ok).length + '/' + (r.data || []).length + ' providers · ' + r.models + ' models'); await loadProviders(); await loadModels() } catch (e) { toast('Sync failed: ' + e.message) } };
         $('#runtimeRefresh').onclick = () => loadRuntime().then(() => toast('Runtime refreshed')).catch(e => toast('Refresh failed: ' + e.message));
@@ -2455,8 +2411,6 @@
         };
         $('#sessionsRefresh').onclick = () => loadSessions().then(() => toast('Sessions refreshed')).catch(e => toast('Refresh failed: ' + e.message));
         $('#activityRefresh').onclick = () => loadRequests().then(() => toast('Activity refreshed')).catch(e => toast('Refresh failed: ' + e.message));
-        $('#addUserBtn').onclick = () => userForm(-1);
-        $('#addRoleBtn').onclick = () => roleForm(-1);
 
         // --------------------------------------------------------- settings ---
         $('#baseUrl').value = state.base;
@@ -2484,16 +2438,18 @@
             localStorage.setItem('zg.timeout', String(state.timeout));
             sessionStorage.setItem('zg.token', state.token);
             $('#chatBase').value = state.base + '/v1';
+            renderTransportExample();
             if (state.ws) { try { state.ws.close() } catch { } state.ws = null }
             toast('Connection settings saved');
             refreshAll();
             connectWs();
         };
         $('#resetSettings').onclick = () => {
-            $('#baseUrl').value = location.protocol.startsWith('http') ? location.origin : 'http://127.0.0.1:5252';
+            $('#baseUrl').value = location.protocol.startsWith('http') ? location.origin : 'http://127.0.0.1:5010';
             $('#adminToken').value = '';
             $('#authMode').selectedIndex = 0;
             $('#timeout').value = '15000';
+            renderTransportExample();
             toast('Form reset — press Save to apply');
         };
         $('#testConnection').onclick = async () => {
@@ -2509,20 +2465,34 @@
         $('#apiSend').onclick = async () => {
             const method = $('#apiMethod').value;
             const path = $('#apiPath').value.trim();
-            const body = $('#apiBody').value.trim();
+            const body = ['POST', 'PATCH'].includes(method) ? $('#apiBody').value.trim() : '';
             if (!path) { toast('API path is required'); return }
+            let requestBody;
+            if (body) { try { requestBody = JSON.parse(body) } catch (e) { toast('JSON body is invalid: ' + e.message); return } }
             let requestedModel = null;
-            if (body) { try { const parsedBody = JSON.parse(body); requestedModel = parsedBody.model || null } catch { } }
+            if (requestBody) requestedModel = requestBody.model || null;
             metaChips('#apiMeta', []);
             $('#apiOutput').textContent = 'Requesting ' + method + ' ' + path + ' …';
             try {
                 const started = performance.now();
-                const response = await fetch(state.base.replace(/\/$/, '') + path, { method, headers: { ...authHeaders(), ...(body ? { 'content-type': 'application/json' } : {}) }, body: body || undefined });
-                const elapsed = performance.now() - started;
+                const response = await fetch(state.base.replace(/\/$/, '') + path, { method, headers: { ...authHeaders(), ...(body ? { 'content-type': 'application/json' } : {}) }, body: body || undefined, signal: AbortSignal.timeout(state.timeout) });
                 const requestId = response.headers.get('x-request-id');
                 const errorCode = response.headers.get('x-error-code');
-                const text = await response.text();
-                let parsed; try { parsed = JSON.parse(text) } catch { parsed = text }
+                const isEventStream = (response.headers.get('content-type') || '').includes('text/event-stream');
+                let text = '';
+                if (isEventStream && response.body) {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    while (true) {
+                        const part = await reader.read();
+                        if (part.done) break;
+                        text += decoder.decode(part.value, { stream: true });
+                        $('#apiOutput').textContent = `HTTP ${response.status} · streaming ${method} ${path}\n\n${text}`;
+                    }
+                    text += decoder.decode();
+                } else text = await response.text();
+                const elapsed = performance.now() - started;
+                let parsed; try { parsed = isEventStream ? text : JSON.parse(text) } catch { parsed = text }
                 const usage = parsed && typeof parsed === 'object' ? parsed.usage : null;
                 const answered = parsed && typeof parsed === 'object' && parsed.model ? parsed.model : requestedModel;
                 metaChips('#apiMeta', [
@@ -2553,7 +2523,9 @@
 
         // ------------------------------------------------------------- boot ---
         function boot() {
-            renderModels(); renderProviders(); renderRuntime(); renderModelStats(); renderFileLog(); renderLogs(); renderSessions(); renderActivity(); renderUsers(); renderRoles(); renderMetrics(); populateChatModels();
+            renderModels(); renderProviders(); renderRuntime(); renderModelStats(); renderFileLog(); renderLogs(); renderSessions(); renderActivity(); renderMetrics(); populateChatModels();
+            loadApiRoutes().catch(e => { $('#apiRouteHelp').textContent = 'Could not load routes: ' + e.message });
+            renderTransportExample();
             refreshAll(true);
             connectWs();
             // WS carries metrics; these are cheap HTTP refreshes for the tables

@@ -9,6 +9,7 @@ export interface DiscoveredModel {
   displayName: string | null;
   caps: string[];
   contextLength: number | null;
+  contextLengthSource?: "provider" | "default";
   parameterSize: string | null;
   quantization: string | null;
   family: string | null;

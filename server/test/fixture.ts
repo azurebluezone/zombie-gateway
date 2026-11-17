@@ -140,6 +140,24 @@ export async function startFixture(
       return;
     }
 
+    if (req.method === "POST" && req.url === "/v1/embeddings") {
+      let raw = "";
+      req.on("data", chunk => raw += String(chunk));
+      req.on("end", () => {
+        const body = JSON.parse(raw) as { input?: string | string[] };
+        const inputs = Array.isArray(body.input) ? body.input : [body.input ?? ""];
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({
+          object: "list",
+          model: "fixture-1",
+          data: inputs.map((_, index) => ({ object: "embedding", index, embedding: [0.1, 0.2] })),
+          usage: { prompt_tokens: 7, total_tokens: 7 },
+          timings: { prompt_ms: 2 },
+        }));
+      });
+      return;
+    }
+
     if (req.method !== "POST" || req.url !== "/v1/chat/completions") {
       res.writeHead(404, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: { message: "not found" } }));
@@ -154,6 +172,7 @@ export async function startFixture(
       const body = JSON.parse(raw) as {
         stream?: boolean;
         messages?: Array<{ content?: unknown }>;
+        tools?: unknown[];
       };
       const text = (body.messages ?? [])
         .map((message) => (typeof message.content === "string" ? message.content : ""))
@@ -196,7 +215,16 @@ export async function startFixture(
           setTimeout(() => res.socket?.destroy(), 50);
           return;
         }
-        res.write(`data: ${JSON.stringify(chunk("fixture "))}\n\n`);
+        if (body.tools?.length) {
+          res.write(`data: ${JSON.stringify({ id: "fixture-tool-stream", object: "chat.completion.chunk", created: 1, model: "fixture-1", choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: "call_fixture", type: "function", function: { name: "calculator", arguments: "{\"expression\":" } }] }, finish_reason: null }] })}\n\n`);
+          res.write(`data: ${JSON.stringify({ id: "fixture-tool-stream", object: "chat.completion.chunk", created: 1, model: "fixture-1", choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: "\"2+2\"}" } }] }, finish_reason: null }] })}\n\n`);
+          res.write(`data: ${JSON.stringify(chunk("", "tool_calls", { prompt_tokens: 20, completion_tokens: 5 }))}\n\n`);
+          res.end("data: [DONE]\n\n");
+          return;
+        }
+        const firstTextChunk = chunk("fixture ") as Record<string, any>;
+        firstTextChunk.choices[0].delta.reasoning = "provider-private reasoning extension";
+        res.write(`data: ${JSON.stringify(firstTextChunk)}\n\n`);
         if (text.includes("MODE:ABORT")) {
           res.on("close", () => reportAbort("gateway closed the upstream stream"));
           return;
@@ -208,7 +236,22 @@ export async function startFixture(
       }
 
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify(completion("fixture ok")));
+      if (text.includes("MODE:NO_USAGE")) {
+        const noUsage = completion("estimated fixture response") as Record<string, unknown>;
+        delete noUsage["usage"];
+        res.end(JSON.stringify(noUsage));
+      } else if (body.tools?.length) {
+        res.end(JSON.stringify({
+          id: "fixture-tool-completion",
+          object: "chat.completion",
+          created: 1,
+          model: "fixture-1",
+          choices: [{ index: 0, message: { role: "assistant", content: null, tool_calls: [{ id: "call_fixture", type: "function", function: { name: "calculator", arguments: { expression: "2+2" } } }] }, finish_reason: "tool_calls" }],
+          usage: { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 },
+        }));
+      } else {
+        res.end(JSON.stringify(completion("fixture ok")));
+      }
     });
   };
 
@@ -235,9 +278,10 @@ function completion(content: string): unknown {
     created: 1,
     model: "fixture-1",
     choices: [
-      { index: 0, message: { role: "assistant", content }, finish_reason: "stop" },
+      { index: 0, message: { role: "assistant", content, reasoning: "provider-private reasoning extension" }, finish_reason: "stop" },
     ],
     usage: { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 },
+    timings: { prompt_ms: 10 },
   };
 }
 

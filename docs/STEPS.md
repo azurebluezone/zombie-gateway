@@ -7,7 +7,7 @@ Legend: `[x]` verified on this machine · `[~]` partial · `[ ]` not started.
 
 > Historical record: the commands below were captured when the local `.env` used
 > `GATEWAY_PORT=8787`. The port is environment-only now (`.env.example` ships
-> `5252`), so read `:8787` as "whatever `GATEWAY_PORT` was at the time". The
+> `5010`), so read `:8787` as "whatever `GATEWAY_PORT` was at the time". The
 > results themselves are unchanged; only the port literal is dated.
 
 ---
@@ -168,7 +168,7 @@ in [`LLAMACPP-LIVE.md`](LLAMACPP-LIVE.md) and summarised in the table below.
 
 **Acceptance**
 ```bash
-npx tsx src/tools/probe.ts --dialect ollama/qwen2.5:1.5b   # writes one row
+npx tsx src/tools/probe.ts --dialect ollama/lfm3:1.7b   # writes one row
 curl -s localhost:8787/v1/chat/completions -d '{...tools...}' | jq '.choices[0].finish_reason'
 # expect "tool_calls" for both a native model and a marker-only model
 ```

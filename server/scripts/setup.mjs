@@ -93,7 +93,7 @@ const socket = (env["GATEWAY_SOCKET"] || "").trim();
 if (!port && !socket) {
   fail(
     `${envPath} sets neither GATEWAY_PORT nor GATEWAY_SOCKET.\n` +
-      "Add GATEWAY_PORT=5252 (see .env.example) or GATEWAY_SOCKET=/path/to/gateway.sock.",
+      "Add GATEWAY_PORT=5010 (see .env.example) or GATEWAY_SOCKET=/path/to/gateway.sock.",
   );
 }
 const url = port ? `http://${host}:${port}` : null;

@@ -23,7 +23,7 @@ node tools/live-check.ts --soak=3
 node tools/live-check.ts --soak-minutes=10
 
 # point it at a gateway that is already running
-node tools/live-check.ts --base-url=http://127.0.0.1:5252 --token=secret
+node tools/live-check.ts --base-url=http://127.0.0.1:5010 --token=secret
 ```
 
 Provider selection comes from the environment: if no `CP_*_KIND` variable is set,
@@ -52,7 +52,7 @@ the same command works for llama.cpp (`CP_LLAMACPP_KIND=llamacpp`) and a cloud
 
 The catalogue is ranked, not taken in order: a model with `completion` and
 without `thinking` wins, then the widest context. On this machine that picks
-`ollama/qwen2.5:1.5b` over `ollama/deepseek-r1:1.5b`.
+`ollama/lfm3:1.7b` over `ollama/deepseek-r1:1.5b`.
 
 The first version of the script took the model with the biggest context —
 `deepseek-r1:1.5b` — and reported `FAIL non-stream chat: empty content`. The log
@@ -84,7 +84,7 @@ A fixed sleep would have been slower and no more correct.
 
 ```
 PASS  gateway boot        469 ms  http://127.0.0.1:40731
-PASS  catalogue             7 ms  2 models; using ollama/qwen2.5:1.5b (ctx 32768, caps completion+tools)
+PASS  catalogue             7 ms  2 models; using ollama/lfm3:1.7b (ctx 32768, caps completion+tools)
 PASS  non-stream chat    6596 ms  content "OK"; usage 170/2
 PASS  stream chat         128 ms  3 data frames, one [DONE]
 PASS  count_tokens          5 ms  172 tokens, estimated=true

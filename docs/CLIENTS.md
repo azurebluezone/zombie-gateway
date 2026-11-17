@@ -7,7 +7,7 @@ transports are real (and why WebSocket/shared-memory are not) lives in
 `docs/TRANSPORTS.md`; this file is the how-to.
 
 ```
-client project ──HTTP (127.0.0.1:5252)──► gateway ──HTTP/HTTPS/UDS/WS──► engine
+client project ──HTTP (127.0.0.1:5010)──► gateway ──HTTP/HTTPS/UDS/WS──► engine
 client project ──UDS (gateway.sock)────► gateway
 ```
 
@@ -59,20 +59,20 @@ The base URL an OpenAI SDK wants is the server root **plus** `/v1`:
 
 ```bash
 # shell
-export OPENAI_BASE_URL=http://127.0.0.1:5252/v1
+export OPENAI_BASE_URL=http://127.0.0.1:5010/v1
 export OPENAI_API_KEY=local
 ```
 
 ```bash
-curl -s http://127.0.0.1:5252/health
-curl -s http://127.0.0.1:5252/v1/models | jq -r '.data[].id'
+curl -s http://127.0.0.1:5010/health
+curl -s http://127.0.0.1:5010/v1/models | jq -r '.data[].id'
 ```
 
 ```bash
-curl -s http://127.0.0.1:5252/v1/chat/completions \
+curl -s http://127.0.0.1:5010/v1/chat/completions \
   -H 'content-type: application/json' \
   -d '{
-    "model": "ollama/qwen2.5:1.5b",
+    "model": "ollama/lfm3:1.7b",
     "messages": [{"role": "user", "content": "Say ready."}],
     "max_tokens": 16
   }'
@@ -82,9 +82,9 @@ Streaming is plain SSE; `[DONE]` is the last frame, and an upstream that dies
 mid-body ends with one `error` frame instead of a fake completion:
 
 ```bash
-curl -N http://127.0.0.1:5252/v1/chat/completions \
+curl -N http://127.0.0.1:5010/v1/chat/completions \
   -H 'content-type: application/json' \
-  -d '{"model":"ollama/qwen2.5:1.5b","stream":true,
+  -d '{"model":"ollama/lfm3:1.7b","stream":true,
        "messages":[{"role":"user","content":"count to three"}]}'
 ```
 
@@ -93,9 +93,9 @@ curl -N http://127.0.0.1:5252/v1/chat/completions \
 ```python
 from openai import OpenAI          # any OpenAI-compatible client works
 
-client = OpenAI(base_url="http://127.0.0.1:5252/v1", api_key="local")
+client = OpenAI(base_url="http://127.0.0.1:5010/v1", api_key="local")
 print(client.chat.completions.create(
-    model="ollama/qwen2.5:1.5b",
+    model="ollama/lfm3:1.7b",
     messages=[{"role": "user", "content": "Say ready."}],
     max_tokens=16,
 ).choices[0].message.content)
@@ -104,11 +104,11 @@ print(client.chat.completions.create(
 ### Node
 
 ```js
-const res = await fetch("http://127.0.0.1:5252/v1/chat/completions", {
+const res = await fetch("http://127.0.0.1:5010/v1/chat/completions", {
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify({
-    model: "ollama/qwen2.5:1.5b",
+    model: "ollama/lfm3:1.7b",
     messages: [{ role: "user", content: "Say ready." }],
     max_tokens: 16,
   }),
@@ -136,7 +136,7 @@ curl -s --unix-socket ./data/gateway.sock http://localhost/health
 curl -s --unix-socket ./data/gateway.sock http://localhost/v1/models
 curl -s --unix-socket ./data/gateway.sock http://localhost/v1/chat/completions \
   -H 'content-type: application/json' \
-  -d '{"model":"ollama/qwen2.5:1.5b","messages":[{"role":"user","content":"hi"}],"max_tokens":8}'
+  -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"hi"}],"max_tokens":8}'
 ```
 
 The `Host` header is irrelevant; it is a local path, not DNS.
@@ -183,7 +183,7 @@ class UDSConnection(http.client.HTTPConnection):
 
 conn = UDSConnection("/absolute/path/gateway.sock")
 conn.request("POST", "/v1/chat/completions",
-             body=json.dumps({"model": "ollama/qwen2.5:1.5b",
+             body=json.dumps({"model": "ollama/lfm3:1.7b",
                               "messages": [{"role": "user", "content": "hi"}],
                               "max_tokens": 8}),
              headers={"content-type": "application/json"})
@@ -211,7 +211,7 @@ client = OpenAI(base_url="http://localhost/v1", api_key="local", http_client=htt
 | Rust `reqwest` | yes | `ClientBuilder::unix_socket` |
 | Browsers, most GUI apps, OpenAI JS SDK defaults | no | use the TCP loopback URL |
 
-If your tool cannot dial a socket, use `http://127.0.0.1:5252/v1`. That is not a
+If your tool cannot dial a socket, use `http://127.0.0.1:5010/v1`. That is not a
 downgrade: the loopback interface never leaves the machine either.
 
 ## 4. Windows: named pipes instead of socket files
@@ -221,7 +221,7 @@ name:
 
 ```powershell
 $env:GATEWAY_SOCKET = '\\.\pipe\gateway'
-$env:GATEWAY_PORT = '5252'
+$env:GATEWAY_PORT = '5010'
 npm start
 ```
 
@@ -277,7 +277,7 @@ server {
   ssl_certificate_key /etc/ssl/gateway.key;
 
   location / {
-    proxy_pass http://127.0.0.1:5252;
+    proxy_pass http://127.0.0.1:5010;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
     proxy_buffering off;          # SSE must not be buffered
@@ -294,15 +294,15 @@ burst when the generation ends.
 The other project needs three values and no code:
 
 ```bash
-OPENAI_BASE_URL=http://127.0.0.1:5252/v1   # or http://gateway.internal/v1
+OPENAI_BASE_URL=http://127.0.0.1:5010/v1   # or http://gateway.internal/v1
 OPENAI_API_KEY=local                       # public routes ignore it
-# model: <provider>/<model>, e.g. ollama/qwen2.5:1.5b
+# model: <provider>/<model>, e.g. ollama/lfm3:1.7b
 ```
 
 Checklist before pointing a project here:
 
-1. `curl -s http://127.0.0.1:5252/health` returns `"status":"ok"`.
-2. `curl -s http://127.0.0.1:5252/v1/models` lists the model id you intend to use.
+1. `curl -s http://127.0.0.1:5010/health` returns `"status":"ok"`.
+2. `curl -s http://127.0.0.1:5010/v1/models` lists the model id you intend to use.
 3. The model id includes the provider prefix; `qwen2.5:1.5b` alone will 404 with
    `model_not_found` and a pointer to the catalogue.
 4. Ask for the capability you need: tool calling and embeddings are advertised
@@ -317,3 +317,116 @@ curl -s --unix-socket /path/gateway.sock http://localhost/health
 
 and set the client's socket path instead of a URL. Everything after the
 transport — routing, translation, catalogue, logging — is unchanged.
+
+## 5. PHP and TypeScript examples
+
+All language examples below call the same OpenAI-compatible Chat Completions route.
+The gateway accepts `stream: true`, function tools, and ordinary non-streaming
+requests. Tool execution remains the client's responsibility; the gateway returns
+the model's `tool_calls` in the OpenAI response shape.
+
+### PHP over TCP
+
+```php
+<?php
+$endpoint = 'http://127.0.0.1:5010/v1/chat/completions';
+$payload = [
+    'model' => 'ollama/lfm3:1.7b',
+    'messages' => [['role' => 'user', 'content' => 'Say ready.']],
+    'max_tokens' => 32,
+];
+$curl = curl_init($endpoint);
+curl_setopt_array($curl, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+    CURLOPT_POSTFIELDS => json_encode($payload, JSON_THROW_ON_ERROR),
+]);
+$response = curl_exec($curl);
+if ($response === false) throw new RuntimeException(curl_error($curl));
+$status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+curl_close($curl);
+if ($status >= 400) throw new RuntimeException($response);
+$data = json_decode($response, true, flags: JSON_THROW_ON_ERROR);
+echo $data['choices'][0]['message']['content'];
+```
+
+### TypeScript with the OpenAI SDK
+
+```ts
+import OpenAI from 'openai';
+
+const client = new OpenAI({ baseURL: 'http://127.0.0.1:5010/v1', apiKey: 'local' });
+const completion = await client.chat.completions.create({
+  model: 'ollama/lfm3:1.7b',
+  messages: [{ role: 'user', content: 'Say ready.' }],
+  max_tokens: 32,
+});
+console.log(completion.choices[0]?.message.content);
+
+const stream = await client.chat.completions.create({
+  model: 'ollama/lfm3:1.7b',
+  messages: [{ role: 'user', content: 'Count to three.' }],
+  stream: true,
+});
+for await (const part of stream) process.stdout.write(part.choices[0]?.delta.content ?? '');
+```
+
+### Function tool request
+
+```bash
+curl -sS http://127.0.0.1:5010/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"What is 2+2?"}],"tools":[{"type":"function","function":{"name":"calculator","description":"Calculate arithmetic","parameters":{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}}}],"tool_choice":"auto"}'
+```
+
+If the model chooses the tool, inspect
+`choices[0].message.tool_calls[].function.arguments` (a JSON string). Run the
+function in the client, append a `tool` message with the matching
+`tool_call_id`, then send the updated messages back to the gateway.
+
+### cURL test matrix over a Unix socket
+
+Replace `/absolute/path/gateway.sock` with `GATEWAY_SOCKET` on the gateway.
+These commands exercise discovery, non-streaming, SSE streaming, and tools without
+TCP:
+
+```bash
+curl --unix-socket /absolute/path/gateway.sock http://localhost/v1/models
+curl --unix-socket /absolute/path/gateway.sock http://localhost/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"Say ready."}],"max_tokens":16}'
+curl -N --unix-socket /absolute/path/gateway.sock http://localhost/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"Count to three."}],"stream":true}'
+curl --unix-socket /absolute/path/gateway.sock http://localhost/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"What is 2+2?"}],"tools":[{"type":"function","function":{"name":"calculator","parameters":{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}}}],"tool_choice":"auto"}'
+```
+
+### Vercel AI SDK
+
+This gateway exposes OpenAI Chat Completions, so connect through the AI SDK's
+OpenAI-compatible provider. Use a model id returned by `GET /v1/models`:
+
+```ts
+import { generateText, streamText } from 'ai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+
+const gateway = createOpenAICompatible({
+  name: 'zombie-gateway',
+  baseURL: 'http://127.0.0.1:5010/v1',
+  apiKey: 'local', // the public local gateway ignores this; keep real provider keys server-side
+});
+
+const answer = await generateText({ model: gateway('ollama/lfm3:1.7b'), prompt: 'Say ready.' });
+console.log(answer.text);
+
+const stream = streamText({ model: gateway('ollama/lfm3:1.7b'), prompt: 'Count to three.' });
+for await (const part of stream.textStream) process.stdout.write(part);
+```
+
+The AI SDK OpenAI-compatible provider uses HTTP fetch and does not dial Unix
+sockets. For UDS use cURL, Node `http.request({ socketPath })`, or Python `httpx`
+with `HTTPTransport(uds=...)` as shown above; alternatively connect the SDK to
+loopback TCP.

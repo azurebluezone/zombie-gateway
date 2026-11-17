@@ -96,6 +96,7 @@ export async function handleMessages(
   let chunkCount = 0;
   let promptTokens: number | null = null;
   let completionTokens: number | null = null;
+  let tokenSource: "provider" | "estimate" | "none" = "none";
   let status = 500;
   let errorCode: string | null = null;
   let detail: string | null = null;
@@ -148,6 +149,8 @@ export async function handleMessages(
       promptHash,
       promptTokens,
       completionTokens,
+      tokenSource,
+      userId: (req as IncomingMessage & { gatewayUserId?: string }).gatewayUserId ?? null,
       detail,
     });
   };
@@ -316,11 +319,11 @@ export async function handleMessages(
       // an estimate against itself would always look healthy.
       const upstreamUsage =
         typeof parsed["usage"] === "object" && parsed["usage"] !== null;
-
       const usage = message["usage"] as Json;
       promptTokens = typeof usage["input_tokens"] === "number" ? usage["input_tokens"] : null;
       completionTokens =
         typeof usage["output_tokens"] === "number" ? usage["output_tokens"] : null;
+      tokenSource = upstreamUsage && promptTokens !== null && completionTokens !== null ? "provider" : "estimate";
 
       const verdict = judgeUsage(
         plan,
@@ -404,6 +407,7 @@ export async function handleMessages(
     const result = await writer.finish(finishReason);
     promptTokens = result.inputTokens;
     completionTokens = result.outputTokens;
+    tokenSource = result.usageFromUpstream ? "provider" : "estimate";
 
     const streamReport = scanText(result.text);
     if (streamReport.detected > 0 || streamReport.trailingMark) {

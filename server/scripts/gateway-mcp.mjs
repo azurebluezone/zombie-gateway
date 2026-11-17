@@ -12,7 +12,7 @@
  * breaks the client's parser.
  *
  * Environment:
- *   GATEWAY_BASE_URL        default http://127.0.0.1:5252
+ *   GATEWAY_BASE_URL        default http://127.0.0.1:5010
  *   GATEWAY_ADMIN_TOKEN     optional bearer token for /admin routes
  *   GATEWAY_MCP_TIMEOUT_MS  default 120000 (local 1B CPU inference is slow)
  *
@@ -21,7 +21,7 @@
 
 import { createInterface } from "node:readline";
 
-const BASE = (process.env.GATEWAY_BASE_URL || "http://127.0.0.1:5252").replace(/\/+$/, "");
+const BASE = (process.env.GATEWAY_BASE_URL || "http://127.0.0.1:5010").replace(/\/+$/, "");
 const TOKEN = process.env.GATEWAY_ADMIN_TOKEN || "";
 const TIMEOUT_MS = Number(process.env.GATEWAY_MCP_TIMEOUT_MS || 120_000);
 const SERVER_INFO = { name: "zombie-gateway", version: "0.1.0" };

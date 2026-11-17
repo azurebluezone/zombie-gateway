@@ -22,6 +22,7 @@ import { openUpstream, readBody } from "../transport/request.ts";
 import { assertTransportSupported } from "../transport/index.ts";
 import { driverFor } from "../providers/index.ts";
 import type { Json } from "../adapters/openai-chat.ts";
+import { estimateTokens } from "./tokens.ts";
 
 const MAX_EMBEDDING_BYTES = 64 * 1024 * 1024;
 const MAX_INPUTS = 2048;
@@ -54,6 +55,7 @@ export async function handleEmbeddings(
   let errorCode: string | null = null;
   let detail: string | null = null;
   let promptTokens: number | null = null;
+  let tokenSource: "provider" | "estimate" | "none" = "none";
   let promptBytes = 0;
   let promptHash: string | null = null;
   let report = emptyReport(ctx.config.sanitize);
@@ -92,6 +94,8 @@ export async function handleEmbeddings(
       promptHash,
       promptTokens,
       completionTokens: null,
+      tokenSource,
+      userId: (req as IncomingMessage & { gatewayUserId?: string }).gatewayUserId ?? null,
       detail,
     });
   };
@@ -189,7 +193,6 @@ export async function handleEmbeddings(
       });
     }
 
-    parsed["model"] = fullModelId(resolved.providerId, resolved.modelId);
     if (!Array.isArray(parsed["data"])) {
       throw new GatewayError({
         message: `Provider "${provider.id}" returned no 'data' array for embeddings`,
@@ -198,18 +201,53 @@ export async function handleEmbeddings(
         providerId: provider.id,
       });
     }
+    if (parsed["data"].length !== inputs.length) {
+      throw new GatewayError({
+        message: `Provider "${provider.id}" returned ${parsed["data"].length} embeddings for ${inputs.length} input(s)`,
+        status: 502,
+        code: "provider_error",
+        providerId: provider.id,
+      });
+    }
+    for (const [index, item] of parsed["data"].entries()) {
+      const vector = typeof item === "object" && item !== null ? (item as Json)["embedding"] : null;
+      if (!Array.isArray(vector) || !vector.every((value: unknown) => typeof value === "number" && Number.isFinite(value))) {
+        throw new GatewayError({
+          message: `Provider "${provider.id}" returned a malformed embedding at index ${index}`,
+          status: 502,
+          code: "provider_error",
+          providerId: provider.id,
+        });
+      }
+      const record = item as Json;
+      record["object"] = "embedding";
+      record["index"] = Number.isInteger(record["index"]) && (record["index"] as number) >= 0 ? record["index"] : index;
+      for (const key of Object.keys(record)) if (!["object", "index", "embedding"].includes(key)) delete record[key];
+    }
+    parsed["object"] = "list";
+    parsed["model"] = fullModelId(resolved.providerId, resolved.modelId);
 
     const usage = parsed["usage"];
     if (typeof usage === "object" && usage !== null) {
       const tokens = (usage as Json)["prompt_tokens"];
-      if (typeof tokens === "number") promptTokens = tokens;
+      if (Number.isInteger(tokens) && (tokens as number) >= 0) promptTokens = tokens as number;
     }
+    const usageSource = promptTokens === null ? "estimate" : "provider";
+    if (promptTokens === null) promptTokens = estimateTokens(inputs.join("\n"));
+    const normalizedUsage = typeof parsed["usage"] === "object" && parsed["usage"] !== null ? parsed["usage"] as Json : {};
+    normalizedUsage["prompt_tokens"] = promptTokens;
+    normalizedUsage["total_tokens"] = promptTokens;
+    for (const key of Object.keys(normalizedUsage)) if (!["prompt_tokens", "total_tokens"].includes(key)) delete normalizedUsage[key];
+    parsed["usage"] = normalizedUsage;
+    for (const key of Object.keys(parsed)) if (!["object", "data", "model", "usage"].includes(key)) delete parsed[key];
+    tokenSource = usageSource;
 
     res.writeHead(200, {
       "content-type": "application/json; charset=utf-8",
       "x-request-id": requestId,
       "x-sanitize": reportHeader(report),
       "x-embeddings-count": String((parsed["data"] as unknown[]).length),
+      "x-usage-source": usageSource,
     });
     res.end(JSON.stringify(parsed));
     status = 200;

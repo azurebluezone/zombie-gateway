@@ -12,11 +12,12 @@
  */
 
 import { closeSync, openSync, readSync, statSync } from "node:fs";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AppContext } from "../core/chat.ts";
 import { fullModelId, listPublicModels, resolveModel, syncProvider } from "../core/catalog.ts";
-import { queryAll, queryOne } from "../core/db.ts";
+import { execute, queryAll, queryOne } from "../core/db.ts";
 import { GatewayError } from "../core/errors.ts";
 import { logEvent } from "../core/logger.ts";
 import { collectMetrics, modelRuntimeStats, recentRequests } from "../core/metrics.ts";
@@ -38,6 +39,21 @@ interface RouteDoc {
 }
 
 const ROUTES: RouteDoc[] = [
+  { method: "GET", path: "/health", purpose: "Gateway liveness and current provider/model counts." },
+  { method: "GET", path: "/healthz", purpose: "Health-check alias." },
+  { method: "GET", path: "/", purpose: "Redirect to the admin dashboard." },
+  { method: "GET", path: "/admin/ui", purpose: "Admin dashboard HTML." },
+  { method: "GET", path: "/dashboard", purpose: "Admin dashboard alias." },
+  { method: "GET", path: "/v1/models", purpose: "OpenAI model catalogue; ids are provider/model." },
+  { method: "GET", path: "/v1/providers", purpose: "Enabled provider catalogue." },
+  { method: "POST", path: "/v1/chat/completions", purpose: "OpenAI chat completions; set stream=true for SSE.", body: { model: "provider/model", messages: "[{role:user,content:Hello}]", stream: "false" } },
+  { method: "POST", path: "/v1/messages", purpose: "Anthropic Messages API translated to the selected provider.", body: { model: "provider/model", max_tokens: "256", messages: "[{role:user,content:Hello}]" } },
+  { method: "POST", path: "/v1/messages/count_tokens", purpose: "Estimate input tokens without an upstream request.", body: { model: "provider/model", messages: "[{role:user,content:Hello}]" } },
+  { method: "POST", path: "/v1/embeddings", purpose: "OpenAI embeddings passthrough; provider must declare embeddings.", body: { model: "provider/model", input: "text to embed" } },
+  { method: "POST", path: "/chat/completions", purpose: "OpenAI chat completions alias.", body: { model: "provider/model", messages: "[{role:user,content:Hello}]", stream: "false" } },
+  { method: "POST", path: "/messages", purpose: "Anthropic Messages API alias.", body: { model: "provider/model", max_tokens: "256", messages: "[{role:user,content:Hello}]" } },
+  { method: "POST", path: "/messages/count_tokens", purpose: "Anthropic token estimate alias.", body: { model: "provider/model", messages: "[{role:user,content:Hello}]" } },
+  { method: "POST", path: "/embeddings", purpose: "OpenAI embeddings alias.", body: { model: "provider/model", input: "text to embed" } },
   { method: "GET", path: "/admin/routes", purpose: "This index: every admin operation and its payload." },
   { method: "GET", path: "/admin/system", purpose: "Identity, database path, uptime, counts, identity hash." },
   { method: "GET", path: "/admin/providers", purpose: "All providers, including disabled ones.", query: { enabled: "1|0" } },
@@ -51,6 +67,9 @@ const ROUTES: RouteDoc[] = [
   { method: "POST", path: "/admin/providers/:id/sync", purpose: "Discover that provider's models now." },
   { method: "POST", path: "/admin/sync", purpose: "Discover every enabled provider." },
   { method: "GET", path: "/admin/models", purpose: "Catalogue with provider state.", query: { provider: "id", include_disabled: "1" } },
+  { method: "GET", path: "/admin/users", purpose: "List issued gateway users and quota usage." },
+  { method: "POST", path: "/admin/users", purpose: "Create a user and issue an API key (returned once).", body: { username: "name", starts_at: "ISO date", expires_at: "ISO date|null", context_limit: "tokens|null", token_limit: "tokens|null", role: "inference|read_only" } },
+  { method: "PATCH", path: "/admin/models/context", purpose: "Set or clear a model context window (tokens).", body: { model: "provider/model", context_length: "integer|null" } },
   { method: "POST", path: "/admin/models/load", purpose: "Warm a model into RAM (ollama only).", body: { model: "provider/model", keep_alive: "30m" } },
   { method: "POST", path: "/admin/models/unload", purpose: "Drop a model from RAM (ollama only).", body: { model: "provider/model" } },
   { method: "GET", path: "/admin/runtime", purpose: "Live reachability and loaded models per provider." },
@@ -109,6 +128,7 @@ function providerView(ctx: AppContext, provider: ProviderConfig): Record<string,
     base_url: provider.baseUrl,
     socket_path: provider.socketPath,
     api_key_env: provider.apiKeyEnv,
+    default_context_length: provider.defaultContextLength,
     authenticated: provider.apiKey !== null,
     enabled: provider.enabled,
     source: provider.source,
@@ -317,6 +337,7 @@ export async function handleAdmin(
       admin_auth: ctx.config.adminAuth,
       admin_token_configured: ctx.config.adminToken !== null,
       admin_token_required: ctx.config.adminAuth && ctx.config.adminToken !== null,
+      user_auth: ctx.config.userAuth,
       admin_origins: ctx.config.adminOrigins,
       sanitize: ctx.config.sanitize,
       context_enforce: ctx.config.contextEnforce,
@@ -346,6 +367,32 @@ export async function handleAdmin(
   if (method === "GET" && path === "/admin/providers/schema") {
     json(res, 200, providerSchema());
     return true;
+  }
+
+  if (path === "/admin/users" && method === "GET") {
+    const data = queryAll<Record<string, unknown> & { id: string }>(`SELECT u.id,u.username,u.role,u.api_key_prefix,u.starts_at,u.expires_at,u.context_limit,u.token_limit,u.enabled,u.created_at,
+      COALESCE(SUM(COALESCE(l.prompt_tokens,0)+COALESCE(l.completion_tokens,0)),0) AS tokens_used, COUNT(l.id) AS requests
+      FROM gateway_users u LEFT JOIN request_logs l ON l.user_id=u.id GROUP BY u.id ORDER BY u.created_at DESC`);
+    json(res, 200, { object: "list", data }); return true;
+  }
+  if (path === "/admin/users" && method === "POST") {
+    const body = await readJson(req, ADMIN_BODY_LIMIT);
+    const username = typeof body.username === "string" ? body.username.trim() : "";
+    const startsAt = typeof body.starts_at === "string" ? body.starts_at : new Date().toISOString();
+    const expiresAt = typeof body.expires_at === "string" ? body.expires_at : null;
+    const contextLimit = body.context_limit == null ? null : Number(body.context_limit);
+    const tokenLimit = body.token_limit == null ? null : Number(body.token_limit);
+    const role = body.role === "read_only" ? "read_only" : "inference";
+    if (!username || !Number.isFinite(Date.parse(startsAt)) || (expiresAt && !Number.isFinite(Date.parse(expiresAt))) || [contextLimit, tokenLimit].some(v => v !== null && (!Number.isInteger(v) || v < 1))) throw new GatewayError({ message: "Provide username, valid dates, and positive integer quotas", status: 400, code: "invalid_request_error" });
+    const apiKey = "zgk_" + randomBytes(32).toString("base64url");
+    const id = randomUUID();
+    execute(`INSERT INTO gateway_users(id,username,role,api_key_hash,api_key_prefix,starts_at,expires_at,context_limit,token_limit,enabled,created_at) VALUES(?,?,?,?,?,?,?,?,?,1,?)`, id, username, role, createHash("sha256").update(apiKey).digest("hex"), apiKey.slice(0,12), startsAt, expiresAt, contextLimit, tokenLimit, new Date().toISOString());
+    json(res, 201, { object: "gateway_user", id, username, role, api_key: apiKey, starts_at: startsAt, expires_at: expiresAt, context_limit: contextLimit, token_limit: tokenLimit, note: "Save this key now; it cannot be retrieved again." }); return true;
+  }
+  if (segments[1] === "users" && segments[2] && segments.length === 3 && method === "DELETE") {
+    const result = queryOne<{ id: string }>("SELECT id FROM gateway_users WHERE id=?", decodeURIComponent(segments[2]));
+    if (!result) throw new GatewayError({ message: "User not found", status: 404, code: "invalid_request_error" });
+    execute("UPDATE gateway_users SET enabled=0 WHERE id=?", result.id); json(res, 200, { object: "gateway_user", id: result.id, enabled: false }); return true;
   }
 
   if (path === "/admin/providers") {
@@ -464,6 +511,19 @@ export async function handleAdmin(
         provider_enabled: ctx.registry.get(model.providerId)?.enabled ?? false,
       })),
     });
+    return true;
+  }
+
+  if (method === "PATCH" && path === "/admin/models/context") {
+    const body = await readJson(req, ADMIN_BODY_LIMIT);
+    const ref = typeof body.model === "string" ? body.model : "";
+    const model = resolveModel(ref);
+    const value = body.context_length === null ? null : Number(body.context_length);
+    if (value !== null && (!Number.isInteger(value) || value < 1)) throw new GatewayError({ message: "context_length must be a positive integer or null", status: 400, code: "invalid_request_error", param: "context_length" });
+    const exists = queryOne<{ model_id: string }>("SELECT model_id FROM models WHERE provider_id = ? AND model_id = ?", model.providerId, model.modelId);
+    if (!exists) throw new GatewayError({ message: "Model not found", status: 404, code: "model_not_found" });
+    execute("UPDATE models SET context_length = ?, context_length_source = ? WHERE provider_id = ? AND model_id = ?", value, value === null ? "provider" : "manual", model.providerId, model.modelId);
+    json(res, 200, { object: "model.context", model: ref, context_length: value, source: "manual" });
     return true;
   }
 

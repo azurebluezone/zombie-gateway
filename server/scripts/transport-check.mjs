@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 const SERVER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HOST = process.env.GATEWAY_HOST ?? "127.0.0.1";
-const PORT = Number(process.env.GATEWAY_PORT ?? 5252);
+const PORT = Number(process.env.GATEWAY_PORT ?? 5010);
 const SOCKET = process.env.GATEWAY_SOCKET ?? "/tmp/gateway.sock";
 const MODEL = process.env.CHECK_MODEL ?? "llamacpp/llama-3.2-1b-abliterated";
 const ACCESS_LOG = path.join(SERVER_DIR, "logs", "access.jsonl");
