@@ -176,6 +176,52 @@ Environment read by the server:
 Tools are named `<server>_<tool>` (`zombie_gateway_health`). Under Code Mode they
 appear as `tools.zombie.gateway_health(...)`.
 
+### Local URL, TLS trust and Caddy
+
+For any client on the same machine, use plain HTTP:
+
+```json
+{
+  "servers": {
+    "zombie-gateway": { "type": "http", "url": "http://127.0.0.1:5010/mcp" }
+  }
+}
+```
+
+`.vscode/mcp.json` in this repository carries exactly that block, so VS Code
+workspaces pick the gateway up without extra setup. Clients that read
+`~/.copilot/mcp-config.json` use the same shape under `"mcpServers"` instead of
+`"servers"`.
+
+Both listeners run the same handler, so loopback gains nothing from TLS, and the
+bundled certificate (`server/test/fixtures/localhost-cert.pem`) is self-signed.
+Node rejects it with `DEPTH_ZERO_SELF_SIGNED_CERT` unless the client process
+trusts it:
+
+```bash
+NODE_EXTRA_CA_CERTS=/home/sahon/zombie-gateway-main/server/test/fixtures/localhost-cert.pem \
+  <client command>
+```
+
+Node 24+ can use the OS store with `--use-system-ca` once the certificate is
+installed there. Never use `NODE_TLS_REJECT_UNAUTHORIZED=0`: it disables
+verification for every HTTPS call in that process.
+
+Caddy is not needed for loopback MCP. On this machine the system Caddyfile maps
+`https://localhost` to `127.0.0.1:5050` (a different application on port 443),
+so `https://localhost/mcp` reaches the wrong service, not the gateway. Adding a
+gateway vhost means editing the root-owned `/etc/caddy/Caddyfile`:
+
+```
+https://gateway.localhost {
+	tls internal
+	reverse_proxy 127.0.0.1:5010
+}
+```
+
+Clients would then also need Caddy's local root CA in their trust store, which
+is the same trust problem the plain-HTTP loopback URL avoids.
+
 ## Verify
 
 ```bash
