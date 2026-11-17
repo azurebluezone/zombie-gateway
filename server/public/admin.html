@@ -1688,7 +1688,7 @@
                     </div></div>
                     <div class="panel" style="margin-top:14px"><div class="panel-head"><div class="panel-title">Register an outbound UDS provider</div></div><div class="panel-body"><p class="sub">The gateway connects to the engine socket. Use an HTTP URL for URL construction and set the actual socket path. Runtime provider sync stores the provider and discovered models in SQLite.</p><pre id="transportUdsAdmin" class="mono" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111517;border:1px solid #30363a;padding:14px;border-radius:6px"># server/.env\nCP_LLAMA_UDS_KIND=llamacpp\nCP_LLAMA_UDS_BASE_URL=http://localhost\nCP_LLAMA_UDS_TRANSPORT=uds\nCP_LLAMA_UDS_SOCKET=/run/llama/llama.sock\nCP_LLAMA_UDS_CAPS=tools\n\n# Or create through the admin API (provider and models persist in SQLite)\ncurl -X POST __GATEWAY_BASE__/admin/providers -H 'content-type: application/json' -d '{"id":"llama-uds","kind":"llamacpp","base_url":"http://localhost","transport":"uds","socket_path":"/run/llama/llama.sock","caps":["tools"]}'\ncurl -X POST __GATEWAY_BASE__/admin/providers/llama-uds/sync</pre></div></div>
                 </section>
-                <section class="view" id="view-mcp"><div class="page-head"><div><h1 class="page-title">MCP tools</h1><p class="sub">Control the stdio MCP server and inspect recorded tool calls.</p></div><button class="btn" id="mcpRefresh">↻ Refresh</button></div><div class="grid stats"><div class="panel stat"><div class="stat-label">MCP status</div><div class="stat-value" id="mcpEnabled">—</div></div><div class="panel stat"><div class="stat-label">Tool calls</div><div class="stat-value" id="mcpCalls">—</div></div><div class="panel stat"><div class="stat-label">Failed calls</div><div class="stat-value" id="mcpFailed">—</div></div></div><div class="panel"><div class="panel-head"><div class="panel-title">MCP service</div><button class="btn green" id="mcpToggle">Enable / disable</button></div><div class="table-wrap" style="border:0"><table><thead><tr><th>TOOL</th><th>CALLS</th><th>FAILED</th><th>LAST CALL</th></tr></thead><tbody id="mcpTools"></tbody></table></div></div></section>
+                <section class="view" id="view-mcp"><div class="page-head"><div><h1 class="page-title">MCP tools</h1><p class="sub">Control the stdio MCP server and inspect recorded tool calls.</p></div><button class="btn" id="mcpRefresh">↻ Refresh</button></div><div class="grid stats"><div class="panel stat"><div class="stat-label">MCP status</div><div class="stat-value" id="mcpEnabled">—</div></div><div class="panel stat"><div class="stat-label">Tool calls</div><div class="stat-value" id="mcpCalls">—</div></div><div class="panel stat"><div class="stat-label">Failed calls</div><div class="stat-value" id="mcpFailed">—</div></div></div><div class="panel"><div class="panel-head"><div class="panel-title">MCP service</div><button class="btn green" id="mcpToggle">Enable / disable</button></div><div class="table-wrap" style="border:0"><table><thead><tr><th>TOOL</th><th>CALLS</th><th>FAILED</th><th>LAST CALL</th></tr></thead><tbody id="mcpTools"></tbody></table></div></div><div class="panel" style="margin-top:16px"><div class="panel-head"><div class="panel-title">Connected clients</div><a class="btn" href="/client" target="_blank" rel="noopener">Open /client ↗</a></div><div class="table-wrap" style="border:0"><table><thead><tr><th>CLIENT</th><th>SESSION</th><th>TRANSPORT</th><th>REQUESTS</th><th>TOOLS USED</th><th>LAST SEEN</th></tr></thead><tbody id="mcpClients"></tbody></table></div></div></section>
                 <section class="view" id="view-settings">
                     <div class="page-head">
                         <div>
@@ -1764,7 +1764,7 @@
             authMode: localStorage.getItem('zg.auth') || 'bearer',
             timeout: Number(localStorage.getItem('zg.timeout')) || 15000,
             ws: null, wsRetry: 0, pingTimer: null, reconnectTimer: null,
-            connected: false, lastUpdate: null, metrics: null, system: null,
+            connected: false, lastUpdate: null, metrics: null, system: null, mcp: null,
             modelStatsWindow: Number(localStorage.getItem('zg.statsWindow')) || 3600000,
             logTail: null, logName: localStorage.getItem('zg.logFile') || 'access'
         };
@@ -1922,8 +1922,28 @@
             renderFileLog();
         }
 
+        async function loadMcp() { state.mcp = await api('/admin/mcp'); renderMcp() }
+        function renderMcp() {
+            const data = state.mcp; if (!data) return;
+            $('#mcpEnabled').innerHTML = data.enabled ? '<span class="tag green"><span class="dot"></span> Enabled</span>' : '<span class="tag red">Disabled</span>';
+            $('#mcpCalls').textContent = num(data.calls);
+            $('#mcpFailed').textContent = num(data.failed);
+            $('#mcpTools').innerHTML = (data.tools || []).map(t => `<tr><td class="mono">${esc(t.tool_name)}</td><td class="mono">${num(t.calls)}</td><td class="mono">${num(t.failed)}</td><td>${t.last_call ? esc(new Date(t.last_call).toLocaleString()) : '<span class="muted">—</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No tools registered</td></tr>';
+            const rows = data.sessions || [];
+            $('#mcpClients').innerHTML = rows.map(s => `<tr><td>${s.client ? esc(s.client.name) + '<div class="item-sub mono">' + esc(s.client.version || '') + '</div>' : '<span class="muted">anonymous</span>'}${s.implicit ? ' <span class="tag">implicit</span>' : ''}</td><td class="mono">${esc((s.id || '').slice(0, 8))}</td><td>${esc(s.transport)}<div class="item-sub mono">${esc(s.protocol)}</div></td><td class="mono">${num(s.requests)}</td><td>${(s.tools_used || []).map(u => `<span class="tag">${esc(u.name)} ×${u.calls}</span>`).join(' ') || '<span class="muted">—</span>'}</td><td>${esc(new Date(s.last_seen).toLocaleString())}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No client connected yet</td></tr>';
+        }
+        async function toggleMcp() {
+            try {
+                const next = !(state.mcp && state.mcp.enabled);
+                const body = await api('/admin/mcp', { method: 'POST', body: JSON.stringify({ enabled: next }) });
+                if (state.mcp) state.mcp.enabled = body.enabled;
+                renderMcp();
+                toast('MCP ' + (body.enabled ? 'enabled' : 'disabled'));
+            } catch (e) { toast('MCP toggle failed: ' + e.message) }
+        }
+
         async function refreshAll(silent = false) {
-            const jobs = [loadSystem, loadProviders, loadModels, loadRequests, loadSessions, loadMetrics, loadModelStats];
+            const jobs = [loadSystem, loadProviders, loadModels, loadRequests, loadSessions, loadMetrics, loadModelStats, loadMcp];
             const results = await Promise.allSettled(jobs.map(fn => fn()));
             const failed = results.filter(r => r.status === 'rejected');
             state.lastUpdate = new Date();
@@ -2035,9 +2055,12 @@
             if (view === 'chat') populateChatModels();
             if (view === 'metrics') renderMetrics();
             if (view === 'dashboard') renderDashboard();
+            if (view === 'mcp') loadMcp().catch(e => toast('MCP failed: ' + e.message));
         }
         $$('[data-view]').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
         $$('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
+        $('#mcpRefresh')?.addEventListener('click', () => loadMcp().then(() => toast('MCP refreshed')).catch(e => toast('MCP failed: ' + e.message)));
+        $('#mcpToggle')?.addEventListener('click', toggleMcp);
 
         function renderModels() {
             const q = ($('#modelSearch')?.value || '').toLowerCase(), pf = $('#modelProviderFilter')?.value || 'all', sf = $('#modelStatusFilter')?.value || 'all';

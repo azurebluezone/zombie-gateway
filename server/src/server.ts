@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { handleAdmin } from "./admin/api.ts";
 import { attachAdminSocket } from "./admin/ws.ts";
+import { handleClientPage } from "./client/page.ts";
 import { listPublicModels } from "./core/catalog.ts";
 import { logAccess } from "./core/access.ts";
 import { handleChatCompletions, type AppContext } from "./core/chat.ts";
@@ -150,6 +151,11 @@ async function route(
     res.end();
     return;
   }
+
+  // Read-only MCP usage page for humans and scripts. It lives outside /admin
+  // because it exposes no secrets: client names are self-declared and session
+  // ids are truncated.
+  if (handleClientPage(ctx, req, res, path)) return;
 
   if (await handleAdmin(ctx, req, res, path, url)) return;
 

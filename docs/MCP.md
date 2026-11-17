@@ -69,15 +69,35 @@ Session and CORS headers:
 Every handshake is a row in an in-process registry:
 
 - `GET /admin/mcp` — status, call totals, `tools_total`, `tool_names`,
-  `session_count` and `sessions`.
+  `session_count` and `sessions`. `tools` always carries all 8 registry tools,
+  with `calls: 0` for a tool that has not run yet.
 - `GET /admin/mcp/sessions` — `{ count, tools_total, tools, sessions }`, where a
   session carries `id`, `client.name`, `client.version`, `protocol`, `transport`,
-  `initialized`, `implicit`, `requests`, `last_method`, `created_at`, `last_seen`.
+  `initialized`, `implicit`, `requests`, `last_method`, `created_at`, `last_seen`
+  and `tools_used` (`name`, `calls`, `failed`, `last_seen`).
 - `gateway_mcp_sessions` exposes the same rows to an agent over MCP.
 
 Admin auth applies to these routes like every other `/admin` path; the MCP tools
 call them over loopback with `GATEWAY_ADMIN_TOKEN`, so an authenticated gateway
 does not need a second credential for tool execution.
+
+### Client usage page
+
+`/client` is a read-only page on both listeners (`http://127.0.0.1:5010/client`
+and `https://127.0.0.1:5011/client`). It answers "which client used which tool,
+how often, and when" without a second dashboard:
+
+- Connected clients: self-declared name/version from `initialize`, transport,
+  protocol, request count, the tools that session called, and last activity.
+- Tools: all registry names, calls, failures, distinct clients, last call.
+- Recent calls: the last 50 rows with client, tool, status and duration.
+
+`GET /client.json` returns the same data as `object: "mcp.client_usage"` for
+scripts and tests. The page is server-rendered and auto-refreshes every 5
+seconds. Full `Mcp-Session-Id` values are bearer credentials, so only an
+8-character prefix is ever rendered; the page exposes no tokens and needs no
+admin token. `mcp_call_logs` stores `session_id`, `client_name` and
+`client_version` so history survives the in-process session expiring.
 
 Minimal session with curl:
 

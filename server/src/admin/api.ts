@@ -676,7 +676,17 @@ export async function handleAdmin(
   if (path === "/admin/mcp" && method === "GET") {
     const setting = queryOne<{ value: string }>("SELECT value FROM gateway_settings WHERE key='mcp_enabled'");
     const calls = queryOne<{ count: number; failed: number }>("SELECT COUNT(*) count,SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) failed FROM mcp_call_logs");
-    const tools = queryAll("SELECT tool_name,COUNT(*) calls,SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) failed,MAX(ts) last_call FROM mcp_call_logs GROUP BY tool_name ORDER BY calls DESC");
+    const rows = queryAll<{ tool_name: string; calls: number; failed: number; last_call: string | null }>(
+      "SELECT tool_name,COUNT(*) calls,SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) failed,MAX(ts) last_call FROM mcp_call_logs GROUP BY tool_name ORDER BY calls DESC",
+    );
+    // The registry is the source of truth for "which tools exist"; the call log
+    // only fills the counters. Without this merge a tool with zero calls would
+    // simply be missing from the panel, which reads as "no MCP at all".
+    const counted = new Map(rows.map((row) => [row.tool_name, row]));
+    const tools = [
+      ...TOOL_NAMES.map((name) => counted.get(name) ?? { tool_name: name, calls: 0, failed: 0, last_call: null }),
+      ...rows.filter((row) => !TOOL_NAMES.includes(row.tool_name)),
+    ];
     const sessions = snapshotMcpSessions();
     json(res, 200, {
       object: "mcp.status",
@@ -714,7 +724,21 @@ export async function handleAdmin(
     const status = body.status === "error" ? "error" : "success";
     const duration = Number(body.duration_ms);
     if (!tool || !Number.isInteger(duration) || duration < 0) throw new GatewayError({ message: "tool and non-negative duration_ms are required", status: 400, code: "invalid_request_error" });
-    execute("INSERT INTO mcp_call_logs(tool_name,status,duration_ms,ts) VALUES(?,?,?,?)", tool,status,duration,new Date().toISOString());
+    // Attribution is best-effort and truncated: a session id is a bearer value,
+    // so it is stored only to join usage rows, never returned by /client.
+    const sessionId = typeof body.session_id === "string" ? body.session_id.slice(0, 80) : null;
+    const clientName = typeof body.client_name === "string" ? body.client_name.slice(0, 120) : null;
+    const clientVersion = typeof body.client_version === "string" ? body.client_version.slice(0, 60) : null;
+    execute(
+      "INSERT INTO mcp_call_logs(tool_name,status,duration_ms,ts,session_id,client_name,client_version) VALUES(?,?,?,?,?,?,?)",
+      tool,
+      status,
+      duration,
+      new Date().toISOString(),
+      sessionId,
+      clientName,
+      clientVersion,
+    );
     json(res, 201, { object: "mcp.call", tool, status }); return true;
   }
 

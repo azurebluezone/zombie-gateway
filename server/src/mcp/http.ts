@@ -48,6 +48,13 @@ interface McpClient {
   title: string | null;
 }
 
+/** One tool as this session used it; in-memory, cleared with the session. */
+interface McpToolUse {
+  calls: number;
+  failed: number;
+  lastAt: number;
+}
+
 interface McpSession {
   id: string;
   protocol: string;
@@ -60,6 +67,8 @@ interface McpSession {
   requests: number;
   lastMethod: string | null;
   client: McpClient | null;
+  /** Per-tool usage, so /client can say who used what without a second store. */
+  tools: Map<string, McpToolUse>;
   /** Legacy SSE reply channel; null for Streamable HTTP sessions. */
   stream: ServerResponse | null;
 }
@@ -112,6 +121,7 @@ function newSession(
     requests: 0,
     lastMethod: null,
     client,
+    tools: new Map(),
     stream: null,
   };
   sessions.set(session.id, session);
@@ -141,6 +151,13 @@ function closeSession(session: McpSession, reason: string): void {
   });
 }
 
+export interface McpToolUseView {
+  name: string;
+  calls: number;
+  failed: number;
+  last_seen: string;
+}
+
 export interface McpSessionView {
   id: string;
   protocol: string;
@@ -152,6 +169,15 @@ export interface McpSessionView {
   last_seen: string;
   requests: number;
   last_method: string | null;
+  tools_used: McpToolUseView[];
+}
+
+function noteToolUse(session: McpSession, tool: string, ok: boolean): void {
+  const row = session.tools.get(tool) ?? { calls: 0, failed: 0, lastAt: 0 };
+  row.calls += 1;
+  if (!ok) row.failed += 1;
+  row.lastAt = Date.now();
+  session.tools.set(tool, row);
 }
 
 /** Live registry for GET /admin/mcp/sessions; expired rows are swept first. */
@@ -170,6 +196,14 @@ export function snapshotMcpSessions(): McpSessionView[] {
       last_seen: new Date(session.lastSeen).toISOString(),
       requests: session.requests,
       last_method: session.lastMethod,
+      tools_used: [...session.tools.entries()]
+        .map(([name, use]) => ({
+          name,
+          calls: use.calls,
+          failed: use.failed,
+          last_seen: new Date(use.lastAt).toISOString(),
+        }))
+        .sort((a, b) => b.calls - a.calls || a.name.localeCompare(b.name)),
     }));
 }
 
@@ -320,11 +354,19 @@ async function reportMcpCall(
   tool: string,
   status: "success" | "error",
   durationMs: number,
+  session: McpSession | null,
 ): Promise<void> {
   try {
     await call("/admin/mcp/calls", {
       method: "POST",
-      body: JSON.stringify({ tool, status, duration_ms: durationMs }),
+      body: JSON.stringify({
+        tool,
+        status,
+        duration_ms: durationMs,
+        session_id: session?.id ?? null,
+        client_name: session?.client?.name ?? null,
+        client_version: session?.client?.version ?? null,
+      }),
     });
   } catch (error) {
     logEvent("warn", "mcp.call_log_failed", {
@@ -412,10 +454,12 @@ async function dispatch(
     try {
       await checkMcpEnabled(call);
       const value = await tool.handler(args);
-      await reportMcpCall(call, tool.name, "success", Date.now() - started);
+      noteToolUse(session, tool.name, true);
+      await reportMcpCall(call, tool.name, "success", Date.now() - started, session);
       return { jsonrpc: "2.0", id, result: toolResult(value) };
     } catch (error) {
-      await reportMcpCall(call, tool.name, "error", Date.now() - started);
+      noteToolUse(session, tool.name, false);
+      await reportMcpCall(call, tool.name, "error", Date.now() - started, session);
       return {
         jsonrpc: "2.0",
         id,

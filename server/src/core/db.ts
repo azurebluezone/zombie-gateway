@@ -173,6 +173,12 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_mcp_call_ts ON mcp_call_logs(ts);
   ALTER TABLE request_logs ADD COLUMN route TEXT NOT NULL DEFAULT '/v1/chat/completions';
   `,
+  `
+  ALTER TABLE mcp_call_logs ADD COLUMN session_id TEXT;
+  ALTER TABLE mcp_call_logs ADD COLUMN client_name TEXT;
+  ALTER TABLE mcp_call_logs ADD COLUMN client_version TEXT;
+  CREATE INDEX idx_mcp_call_client ON mcp_call_logs(client_name, ts);
+  `,
 ];
 
 let instance: DatabaseSync | null = null;

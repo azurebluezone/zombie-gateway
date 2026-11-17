@@ -161,6 +161,51 @@ test("MCP flow: implicit connect, client registry and authenticated sessions", a
     assert.equal(removed.status, 204);
   });
 
+  await t.test("client usage page and admin MCP list are populated", async () => {
+    // The admin table must list the registry, not only tools that happened to
+    // be called: a fresh gateway would otherwise look empty.
+    const admin = await call(`${gateway.base}/admin/mcp`, {
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+    assert.equal(admin.status, 200);
+    assert.equal((admin.body.tools as unknown[]).length, 8);
+    const declared = (admin.body.tools as Array<Record<string, any>>).map((row) => row.tool_name);
+    assert.ok(declared.includes("gateway_health"));
+    assert.ok(declared.includes("gateway_chat"));
+    const health = (admin.body.tools as Array<Record<string, any>>).find((row) => row.tool_name === "gateway_health");
+    assert.ok(health, "gateway_health missing from the MCP tool table");
+    assert.ok(Number(health.calls) >= 1, "gateway_health call was not counted");
+
+    const json = await call(`${gateway.base}/client.json`);
+    assert.equal(json.status, 200);
+    assert.equal(json.body.object, "mcp.client_usage");
+    assert.equal(json.body.tools_total, 8);
+    assert.equal((json.body.tools as unknown[]).length, 8);
+
+    const clients = json.body.clients as Array<Record<string, any>>;
+    const probe = clients.find((entry) => entry.client?.name === "probe-client");
+    assert.ok(probe, `probe-client missing from ${JSON.stringify(clients)}`);
+    const used = probe.tools_used as Array<Record<string, any>>;
+    assert.ok(
+      used.some((use) => use.name === "gateway_health" && Number(use.calls) >= 1),
+      `probe-client tools_used lacks gateway_health: ${JSON.stringify(used)}`,
+    );
+
+    const recent = json.body.recent_calls as Array<Record<string, any>>;
+    assert.ok(
+      recent.some((row) => row.client_name === "probe-client" && row.tool === "gateway_health"),
+      "recent_calls has no row attributed to probe-client",
+    );
+
+    const page = await fetch(`${gateway.base}/client`);
+    assert.equal(page.status, 200);
+    assert.match(String(page.headers.get("content-type")), /text\/html/);
+    const html = await page.text();
+    assert.ok(html.includes("probe-client"), "the page does not name the connected client");
+    assert.ok(html.includes("gateway_health"), "the page does not list the used tool");
+    assert.ok(!html.includes(clientSession), "the full MCP session id must never be rendered");
+  });
+
   await t.test("gateway_chat executes a real model call through the gateway", async () => {
     // No initialize: the implicit session proves the stateless path again, and
     // gateway_chat proves the MCP tool can reach the model, not only the admin
