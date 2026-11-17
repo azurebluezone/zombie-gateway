@@ -27,6 +27,7 @@ import { listPublicModels } from "./core/catalog.ts";
 import { logAccess } from "./core/access.ts";
 import { handleChatCompletions, type AppContext } from "./core/chat.ts";
 import { handleEmbeddings } from "./core/embeddings.ts";
+import { handleMcp } from "./mcp/http.ts";
 import { handleCountTokens, handleMessages } from "./core/messages.ts";
 import { GatewayError, toEnvelope } from "./core/errors.ts";
 import { logEvent } from "./core/logger.ts";
@@ -56,8 +57,10 @@ function sendHtml(res: http.ServerResponse, body: string): void {
   res.end(body);
 }
 
-export function createServer(ctx: AppContext): http.Server {
-  const server = http.createServer((req, res) => {
+export function createRequestListener(
+  ctx: AppContext,
+): (req: http.IncomingMessage, res: http.ServerResponse) => void {
+  return (req, res) => {
     // Every request leaves one line in the access log, success or failure. The
     // line is written on 'finish', so the status and byte count are final.
     const startedNs = process.hrtime.bigint();
@@ -102,7 +105,11 @@ export function createServer(ctx: AppContext): http.Server {
       if (!res.headersSent) json(res, envelope.status, envelope.body);
       else res.end();
     });
-  });
+  };
+}
+
+export function createServer(ctx: AppContext): http.Server {
+  const server = http.createServer(createRequestListener(ctx));
 
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 70_000;
@@ -145,6 +152,10 @@ async function route(
   }
 
   if (await handleAdmin(ctx, req, res, path, url)) return;
+
+  // MCP transports (/mcp, /sse, /messages) share one tool registry with the
+  // stdio server; they return false for every other path.
+  if (await handleMcp(ctx, req, res, path, url)) return;
 
   if (["/v1/chat/completions", "/chat/completions", "/v1/messages", "/messages", "/v1/messages/count_tokens", "/messages/count_tokens", "/v1/embeddings", "/embeddings"].includes(path)) {
     const header = req.headers.authorization;

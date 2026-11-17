@@ -41,7 +41,14 @@ export function cors(req: IncomingMessage, res: ServerResponse, origins: string[
 
   res.setHeader(
     "access-control-allow-headers",
-    "authorization, content-type, x-session-id, x-client-id, x-admin-token",
+    "authorization, content-type, accept, x-session-id, x-client-id, x-admin-token, mcp-session-id, mcp-protocol-version, last-event-id",
+  );
+  // A browser cannot read a header the server does not expose. Without these
+  // two, an in-page MCP client sees `null` for its session and re-initializes
+  // on every call.
+  res.setHeader(
+    "access-control-expose-headers",
+    "mcp-session-id, mcp-protocol-version, x-request-id, x-error-code",
   );
   res.setHeader("access-control-allow-methods", "GET, POST, PATCH, DELETE, OPTIONS");
   res.setHeader("access-control-max-age", "600");

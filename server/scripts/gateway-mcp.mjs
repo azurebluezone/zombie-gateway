@@ -11,6 +11,9 @@
  * frames only; diagnostics go to stderr, because one stray print on stdout
  * breaks the client's parser.
  *
+ * The tool list itself lives in scripts/mcp-tools.mjs, shared with the /mcp and
+ * /sse HTTP transports, so a tool is added once and appears on every transport.
+ *
  * Environment:
  *   GATEWAY_BASE_URL        default http://127.0.0.1:5010
  *   GATEWAY_ADMIN_TOKEN     optional bearer token for /admin routes
@@ -20,12 +23,11 @@
  */
 
 import { createInterface } from "node:readline";
+import { createTools, FALLBACK_PROTOCOL, SERVER_INFO, toolResult } from "./mcp-tools.mjs";
 
 const BASE = (process.env.GATEWAY_BASE_URL || "http://127.0.0.1:5010").replace(/\/+$/, "");
 const TOKEN = process.env.GATEWAY_ADMIN_TOKEN || "";
 const TIMEOUT_MS = Number(process.env.GATEWAY_MCP_TIMEOUT_MS || 120_000);
-const SERVER_INFO = { name: "zombie-gateway", version: "0.1.0" };
-const FALLBACK_PROTOCOL = "2025-06-18";
 
 function log(message) {
   process.stderr.write(`[gateway-mcp] ${message}\n`);
@@ -69,136 +71,20 @@ async function http(path, init = {}) {
   }
 }
 
-const TOOLS = [
-  {
-    name: "gateway_health",
-    description: "Gateway health: status, uptime, provider and model counts. Use this first when a call fails.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    handler: async () => (await http("/health")).body,
-  },
-  {
-    name: "gateway_models",
-    description: "Public model ids the gateway serves, in <provider>/<model> form.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    handler: async () => (await http("/v1/models")).body,
-  },
-  {
-    name: "gateway_runtime",
-    description:
-      "Live runtime per provider: reachable, loaded models, and for llama.cpp the alias, quantization, ctx size and slot count.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    handler: async () => (await http("/admin/runtime")).body,
-  },
-  {
-    name: "gateway_model_stats",
-    description:
-      "Per-model request counts, errors, average and max latency, tokens and last request time, read from request_logs. This is the 'which model answered and how slow' answer.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        window_ms: {
-          type: "integer",
-          minimum: 60_000,
-          maximum: 604_800_000,
-          description: "Lookback window in milliseconds. Default 3600000 (1 hour).",
-        },
-      },
-      additionalProperties: false,
-    },
-    handler: async (args) => {
-      const windowMs = Number(args.window_ms || 3_600_000);
-      return (await http(`/admin/model-stats?window_ms=${encodeURIComponent(windowMs)}`)).body;
-    },
-  },
-  {
-    name: "gateway_logs",
-    description:
-      "Tail one server log file. Returns the absolute path plus the last N lines, so the answer includes where the log actually lives.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        file: {
-          type: "string",
-          enum: ["access", "gateway", "llama-server", "llama-model"],
-          description: "Whitelisted log file. Default access.",
-        },
-        limit: { type: "integer", minimum: 1, maximum: 500, description: "Lines to return. Default 50." },
-      },
-      additionalProperties: false,
-    },
-    handler: async (args) => {
-      const file = String(args.file || "access");
-      const limit = Math.min(Math.max(Number(args.limit || 50), 1), 500);
-      return (await http(`/admin/logs?file=${encodeURIComponent(file)}&limit=${encodeURIComponent(limit)}`)).body;
-    },
-  },
-  {
-    name: "gateway_requests",
-    description: "Most recent request_logs rows: status, provider, model, duration, tokens and request id.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        limit: { type: "integer", minimum: 1, maximum: 200, description: "Rows to return. Default 20." },
-        provider: { type: "string", description: "Optional provider id filter." },
-      },
-      additionalProperties: false,
-    },
-    handler: async (args) => {
-      const limit = Math.min(Math.max(Number(args.limit || 20), 1), 200);
-      const provider = args.provider ? `&provider=${encodeURIComponent(String(args.provider))}` : "";
-      return (await http(`/admin/requests?limit=${encodeURIComponent(limit)}${provider}`)).body;
-    },
-  },
-  {
-    name: "gateway_chat",
-    description:
-      "Send one non-streaming chat completion through the gateway and return the answer with model, usage and latency. This consumes local CPU; keep max_tokens small.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        model: { type: "string", description: "Public id, e.g. llamacpp/llama-3.2-1b-abliterated." },
-        prompt: { type: "string", description: "Single user message." },
-        messages: {
-          type: "array",
-          description: "Full message list instead of prompt (OpenAI shape).",
-          items: { type: "object" },
-        },
-        max_tokens: { type: "integer", minimum: 1, maximum: 4096, description: "Default 256." },
-        temperature: { type: "number", minimum: 0, maximum: 2, description: "Default 0.7." },
-      },
-      required: ["model"],
-      additionalProperties: false,
-    },
-    handler: async (args) => {
-      if (!args.model) throw new Error("model is required");
-      const messages = Array.isArray(args.messages)
-        ? args.messages
-        : [{ role: "user", content: String(args.prompt || "") }];
-      if (!Array.isArray(args.messages) && !args.prompt) throw new Error("prompt or messages is required");
-      const started = Date.now();
-      const result = await http("/v1/chat/completions", {
-        method: "POST",
-        body: JSON.stringify({
-          model: args.model,
-          messages,
-          max_tokens: Math.min(Math.max(Number(args.max_tokens || 256), 1), 4096),
-          temperature: Math.min(Math.max(Number(args.temperature ?? 0.7), 0), 2),
-        }),
-      });
-      return {
-        request_id: result.request_id,
-        duration_ms: Date.now() - started,
-        status: result.status,
-        ...result.body,
-      };
-    },
-  },
-];
-
-function toolResult(value, isError = false) {
-  const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
-  return { content: [{ type: "text", text }], isError };
+async function checkMcpEnabled() {
+  const status = (await http("/admin/mcp")).body;
+  if (status?.enabled === false) throw new Error("MCP access is disabled in the gateway admin settings");
 }
+
+async function reportMcpCall(tool, status, durationMs) {
+  try {
+    await http("/admin/mcp/calls", { method: "POST", body: JSON.stringify({ tool, status, duration_ms: durationMs }) });
+  } catch (error) {
+    log(`could not record MCP call metrics: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+const TOOLS = createTools(http);
 
 async function handle(message) {
   const { id, method, params } = message;
@@ -239,10 +125,14 @@ async function handle(message) {
     if (!tool) {
       return { jsonrpc: "2.0", id, result: toolResult(`Unknown tool "${name}"`, true) };
     }
+    const started = Date.now();
     try {
+      await checkMcpEnabled();
       const value = await tool.handler(params?.arguments || {});
+      await reportMcpCall(tool.name, "success", Date.now() - started);
       return { jsonrpc: "2.0", id, result: toolResult(value) };
     } catch (error) {
+      await reportMcpCall(tool.name, "error", Date.now() - started);
       return {
         jsonrpc: "2.0",
         id,

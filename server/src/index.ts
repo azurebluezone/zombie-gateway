@@ -9,18 +9,19 @@
  */
 
 import type { Server } from "node:http";
+import https from "node:https";
 import net, { type Socket } from "node:net";
-import { chmodSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
 import { dirname } from "node:path";
 import { readGatewayConfig } from "./config.ts";
-import { createServer } from "./server.ts";
+import { createRequestListener, createServer } from "./server.ts";
 import { closeDatabase, openDatabase } from "./core/db.ts";
 import { initAccessLog } from "./core/access.ts";
 import { initLogger, logEvent } from "./core/logger.ts";
 import { syncAll } from "./core/catalog.ts";
 import { ProviderRegistry } from "./core/registry.ts";
 import { closeTransports } from "./transport/request.ts";
-import { closeAdminSockets } from "./admin/ws.ts";
+import { attachAdminSocket, closeAdminSockets } from "./admin/ws.ts";
 import { loadIdentity } from "./identity.ts";
 import { loadPolicy } from "./core/policy.ts";
 import type { AppContext } from "./core/chat.ts";
@@ -69,6 +70,7 @@ async function main(): Promise<void> {
   logEvent("info", "gateway.ready", {
     host: config.host,
     port: config.port,
+    tls_port: config.tlsPort,
     db: config.dbPath,
     log: config.logPath,
     access_log: config.accessLogPath,
@@ -97,7 +99,7 @@ async function main(): Promise<void> {
   // the process until the force-close timer.
   const openSockets = new Set<Socket>();
   const busySockets = new Set<Socket>();
-  const track = (target: Server): void => {
+  const track = (target: Server | https.Server): void => {
     target.on("connection", (socket) => {
       openSockets.add(socket);
       socket.on("close", () => {
@@ -121,6 +123,35 @@ async function main(): Promise<void> {
     server.listen(port, config.host, () => {
       logEvent("info", "gateway.listening", {
         url: `http://${config.host}:${port}`,
+      });
+    });
+  }
+
+  // Optional TLS listener: same handler, same routes, same auth switch. The
+  // PEM files are read at boot so a missing certificate fails loudly instead
+  // of leaving an https URL that quietly refuses connections.
+  let tlsServer: https.Server | null = null;
+  if (config.tlsPort !== null) {
+    const port = config.tlsPort;
+    tlsServer = https.createServer(
+      { cert: readFileSync(config.tlsCert), key: readFileSync(config.tlsKey) },
+      createRequestListener(context),
+    );
+    tlsServer.keepAliveTimeout = 65_000;
+    tlsServer.headersTimeout = 70_000;
+    tlsServer.requestTimeout = 0;
+    attachAdminSocket(tlsServer as unknown as Server, context);
+    track(tlsServer);
+    tlsServer.on("error", (error: unknown) => {
+      logEvent("error", "gateway.tls_failed", {
+        port,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      process.exit(1);
+    });
+    tlsServer.listen(port, config.host, () => {
+      logEvent("info", "gateway.tls_listening", {
+        url: `https://${config.host}:${port}`,
       });
     });
   }
@@ -217,8 +248,9 @@ async function main(): Promise<void> {
         // Already gone: unlinking twice is not an error worth a log line.
       }
     };
-    const servers: Server[] = tcpEnabled ? [server] : [];
+    const servers: Array<Server | https.Server> = tcpEnabled ? [server] : [];
     if (socketServer !== null) servers.push(socketServer);
+    if (tlsServer !== null) servers.push(tlsServer);
     let pendingCloses = servers.length;
     const closed = (): void => {
       pendingCloses -= 1;

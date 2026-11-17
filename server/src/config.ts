@@ -52,6 +52,15 @@ export interface GatewayConfig {
   /** TCP port from GATEWAY_PORT; null when only a Unix socket is configured. */
   port: number | null;
   /**
+   * Optional TLS listener on GATEWAY_TLS_PORT. It runs the same request handler
+   * as the plain listener, so every route (including /mcp and /sse) exists on
+   * both schemes. Null disables HTTPS entirely.
+   */
+  tlsPort: number | null;
+  /** PEM certificate and key paths; both required when tlsPort is set. */
+  tlsCert: string;
+  tlsKey: string;
+  /**
    * Path of an additional Unix domain socket (or Windows named pipe). Empty
    * means TCP only. Node has no cross-platform "named pipe" path, so the value
    * is used verbatim and validated at listen time.
@@ -258,15 +267,15 @@ function readInt(raw: string | undefined, fallback: number): number {
  * turn a typo like `GATEWAY_PORT=52x2` into a random port, so this reads
  * strictly and throws.
  */
-function readPort(raw: string | undefined): number | null {
+function readPort(raw: string | undefined, name = "GATEWAY_PORT"): number | null {
   if (raw === undefined || raw.trim() === "") return null;
   const text = raw.trim();
   if (!/^\d+$/.test(text)) {
-    throw new Error(`GATEWAY_PORT must be an integer 1..65535, got "${raw}"`);
+    throw new Error(`${name} must be an integer 1..65535, got "${raw}"`);
   }
   const port = Number(text);
   if (port < 1 || port > 65_535) {
-    throw new Error(`GATEWAY_PORT must be an integer 1..65535, got "${raw}"`);
+    throw new Error(`${name} must be an integer 1..65535, got "${raw}"`);
   }
   return port;
 }
@@ -371,6 +380,17 @@ export function readGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
   }
 
   const port = readPort(env["GATEWAY_PORT"]);
+  const tlsPort = readPort(env["GATEWAY_TLS_PORT"], "GATEWAY_TLS_PORT");
+  const tlsCert = resolveOptionalPath(env["GATEWAY_TLS_CERT"]);
+  const tlsKey = resolveOptionalPath(env["GATEWAY_TLS_KEY"]);
+  if (tlsPort !== null && (tlsCert === "" || tlsKey === "")) {
+    throw new Error(
+      "GATEWAY_TLS_PORT is set but GATEWAY_TLS_CERT or GATEWAY_TLS_KEY is empty; HTTPS needs both PEM files",
+    );
+  }
+  if (tlsPort !== null && tlsPort === port) {
+    throw new Error("GATEWAY_TLS_PORT must differ from GATEWAY_PORT");
+  }
   const socketPath = (env["GATEWAY_SOCKET"] || "").trim();
   if (port === null && socketPath === "") {
     throw new Error(
@@ -382,6 +402,9 @@ export function readGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
   return {
     host: env["GATEWAY_HOST"] || "127.0.0.1",
     port,
+    tlsPort,
+    tlsCert,
+    tlsKey,
     socketPath,
     socketMode: readSocketMode(env["GATEWAY_SOCKET_MODE"]),
     dbPath: resolveConfiguredPath(env, env["GATEWAY_DB"], "gateway.db"),
