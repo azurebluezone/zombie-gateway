@@ -49,6 +49,7 @@ import {
 } from "./sanitize.ts";
 import type { ProviderRegistry } from "./registry.ts";
 import type { LoadedIdentity } from "../identity.ts";
+import { injectIdentity } from "../identity.ts";
 import { injectPolicy, policyHeader, type LoadedPolicy, type PolicyInjection } from "./policy.ts";
 
 type Json = AdapterJson;
@@ -232,6 +233,7 @@ export async function handleChatCompletions(
       completionTokens,
       tokenSource,
       userId: (req as IncomingMessage & { gatewayUserId?: string }).gatewayUserId ?? null,
+      route: (req.url ?? "").split("?")[0] || "/v1/chat/completions",
       detail,
     });
   };
@@ -296,8 +298,22 @@ export async function handleChatCompletions(
     // The behaviour layer is added to the copy that goes on the wire. `history`
     // stays clean so the session store never replays the injected text.
     const injection = injectPolicy(history, ctx.policy, headerValue(req, "x-policy"));
-    const outgoing = injection.messages;
+    // Identity is part of the model's world, not just a response header: the wire
+    // copy carries it so "who are you?" has a truthful answer. `history` stays
+    // clean, exactly like the policy text, so a replay never stacks it.
+    const identified = ctx.config.identityPrompt
+      ? injectIdentity(injection.messages, ctx.identity)
+      : { messages: injection.messages, state: "disabled" as const };
+    const outgoing = identified.messages;
     policyRef = injection;
+    if (identified.state === "applied") {
+      logEvent("info", "identity.injected", {
+        requestId,
+        route: "/v1/chat/completions",
+        name: ctx.identity.identity.name,
+        version: ctx.identity.identity.version,
+      });
+    }
     if (injection.state === "applied") {
       logEvent("info", "policy.injected", {
         requestId,

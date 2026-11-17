@@ -18,7 +18,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import type { AppContext } from "../core/chat.ts";
-import { execute, queryAll } from "../core/db.ts";
+import { execute, queryAll, queryOne } from "../core/db.ts";
 import { logEvent, nowIso } from "../core/logger.ts";
 import { collectMetrics } from "../core/metrics.ts";
 
@@ -196,9 +196,12 @@ export function attachAdminSocket(server: Server, ctx: AppContext): void {
         return;
       }
 
-      if (ctx.config.adminAuth) {
+      const authSetting = queryOne<{ value: string }>("SELECT value FROM gateway_settings WHERE key='admin_auth_enabled'");
+      const adminAuth = ctx.config.adminAuth || authSetting?.value === "true";
+      if (adminAuth) {
         const supplied = tokenFrom(req, url);
-        if (!supplied || supplied !== ctx.config.adminToken) {
+        const dbKey = supplied ? queryOne<{ id: string }>("SELECT id FROM admin_api_keys WHERE key_hash=? AND enabled=1", createHash("sha256").update(supplied).digest("hex")) : undefined;
+        if (!supplied || (supplied !== ctx.config.adminToken && !dbKey)) {
           reject(socket, 401, "unauthorized", "Admin token required (?token= or x-admin-token)");
           return;
         }

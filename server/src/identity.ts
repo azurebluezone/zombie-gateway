@@ -12,6 +12,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { ChatMessage } from "./core/session.ts";
 
 export interface SystemIdentity {
   name: string;
@@ -102,5 +103,62 @@ export function identityHeaders(loaded: LoadedIdentity): Record<string, string> 
     "x-system-version": identity.version,
     "x-system-owner": identity.owner,
     "x-powered-by": `${identity.name}-by-${identity.owner.replace(/\s+/g, "")}`,
+  };
+}
+
+/** Marker that makes injection idempotent when a client replays the prompt. */
+export const IDENTITY_MARKER = "[system-identity]";
+
+/**
+ * The few lines a model needs to answer "who are you?" correctly. Headers are
+ * attribution for HTTP clients; a model only reads its prompt, so the same
+ * identity has to travel as text too.
+ */
+export function identityText(loaded: LoadedIdentity): string {
+  const { identity } = loaded;
+  const lines = [
+    `${IDENTITY_MARKER} You are answering through ${identity.name} ${identity.version}, an OpenAI-compatible and Anthropic-compatible model gateway.`,
+    `Owner: ${identity.owner}. Organization: ${identity.organization}. Location: ${identity.location}. Protocol: ${identity.protocol}.`,
+  ];
+  if (identity.tagline.length > 0) lines.push(`Tagline: ${identity.tagline}.`);
+  lines.push(
+    "When asked which system or gateway you are running on, answer with this name and version instead of inventing a different operator.",
+  );
+  return lines.join("\n");
+}
+
+function instructionRole(role: string): boolean {
+  return role === "system" || role === "developer";
+}
+
+function contentText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) =>
+      typeof part === "object" && part !== null && typeof (part as { text?: unknown }).text === "string"
+        ? String((part as { text: string }).text)
+        : "",
+    )
+    .join("\n");
+}
+
+/**
+ * Prepends the identity block to the wire copy of a prompt. The caller keeps
+ * its own history untouched, so a session replay never stacks the marker.
+ */
+export function injectIdentity(
+  messages: ChatMessage[],
+  loaded: LoadedIdentity,
+): { messages: ChatMessage[]; state: "applied" | "present" | "empty" } {
+  if (messages.length === 0) return { messages, state: "empty" };
+  for (const message of messages) {
+    if (instructionRole(message.role) && contentText(message.content).includes(IDENTITY_MARKER)) {
+      return { messages, state: "present" };
+    }
+  }
+  return {
+    messages: [{ role: "system", content: identityText(loaded) }, ...messages],
+    state: "applied",
   };
 }

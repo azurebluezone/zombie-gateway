@@ -96,6 +96,7 @@ export async function handleEmbeddings(
       completionTokens: null,
       tokenSource,
       userId: (req as IncomingMessage & { gatewayUserId?: string }).gatewayUserId ?? null,
+      route: (req.url ?? "").split("?")[0] || "/v1/chat/completions",
       detail,
     });
   };

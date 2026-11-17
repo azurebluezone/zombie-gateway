@@ -215,6 +215,7 @@ export interface RequestLogRow {
   tokenSource: "provider" | "estimate" | "none";
   detail: string | null;
   userId?: string | null;
+  route?: string;
 }
 
 export function recordRequest(row: RequestLogRow): void {
@@ -222,8 +223,8 @@ export function recordRequest(row: RequestLogRow): void {
     `INSERT INTO request_logs (
        request_id, ts, session_id, client_sig, provider_id, model_id, stream, status,
        error_code, upstream_status, duration_ms, ttfb_ms, chunk_count, prompt_bytes,
-       prompt_hash, prompt_tokens, completion_tokens, detail, token_source, user_id
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       prompt_hash, prompt_tokens, completion_tokens, detail, token_source, user_id, route
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.requestId,
     nowIso(),
     row.sessionId,
@@ -244,5 +245,6 @@ export function recordRequest(row: RequestLogRow): void {
     row.detail,
     row.tokenSource,
     row.userId ?? null,
+    row.route ?? "/v1/chat/completions",
   );
 }

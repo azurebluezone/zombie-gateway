@@ -1187,7 +1187,7 @@
                         <div class="group-label">Tools</div><button class="nav" data-view="console"><svg
                                 viewBox="0 0 24 24" fill="none" stroke-width="1.8">
                                 <path d="m4 5 6 7-6 7M12 19h8" />
-                            </svg>API Console</button><button class="nav" data-view="transport"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 5h16v14H4zM8 9l3 3-3 3m5 0h4"/></svg>Client transports</button><button class="nav" data-view="settings"><svg viewBox="0 0 24 24"
+                            </svg>API Console</button><button class="nav" data-view="transport"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 5h16v14H4zM8 9l3 3-3 3m5 0h4"/></svg>Client transports</button><button class="nav" data-view="mcp"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M5 4h14v16H5zM8 8h8M8 12h5M8 16h8"/></svg>MCP</button><button class="nav" data-view="settings"><svg viewBox="0 0 24 24"
                                 fill="none" stroke-width="1.8">
                                 <circle cx="12" cy="12" r="3" />
                                 <path
@@ -1318,8 +1318,8 @@
                             <option>OpenCode</option>
                         </select><select class="select" id="modelStatusFilter">
                             <option value="all">All states</option>
-                            <option value="loaded">Loaded</option>
-                            <option value="available">Available</option>
+                            <option value="enabled">Enabled</option>
+                            <option value="disabled">Disabled</option>
                         </select><span class="tag" id="modelCount">Loading…</span>
                     </div>
                     <div class="panel">
@@ -1550,15 +1550,8 @@
                         </div><button class="btn" id="logsRefresh">↻ Refresh</button>
                     </div>
                     <div class="toolbar">
-                        <div class="search"><input id="logSearch" placeholder="Search request ID, model, route…"></div>
-                        <select class="select">
-                            <option>Last 24 hours</option>
-                            <option>Last 7 days</option>
-                        </select><select class="select">
-                            <option>All statuses</option>
-                            <option>Success</option>
-                            <option>Error</option>
-                        </select>
+                        <div class="search"><input id="logSearch" placeholder="Search request, model, route, user ID…"></div><select class="select" id="logProviderFilter"><option value="">All providers</option></select><select class="select" id="logStatusFilter"><option value="">All results</option><option value="success">Successful</option><option value="error">Failed</option></select><input class="field mono" id="logUserFilter" placeholder="User ID" style="max-width:180px">
+
                     </div>
                     <div class="panel">
                         <div class="table-wrap" style="border:0">
@@ -1614,12 +1607,13 @@
                             <h1 class="page-title">Admin Sessions</h1>
                         </div><button class="btn" id="sessionsRefresh">↻ Refresh</button>
                     </div>
+                    <div class="toolbar"><div class="search"><input id="sessionSearch" placeholder="Search user ID or session ID…"></div><input class="field mono" id="sessionUserFilter" placeholder="User ID" style="max-width:200px"></div>
                     <div class="panel">
                         <div class="table-wrap" style="border:0">
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>SESSION ID</th>
+                                        <th>SESSION ID</th><th>USER ID</th><th>REQUESTS</th>
                                         <th>REMOTE ADDRESS</th>
                                         <th>USER AGENT</th>
                                         <th>OPENED</th>
@@ -1667,7 +1661,7 @@
                         <div class="panel-body">
                             <div class="form-grid">
                                 <div class="form-row"><label>HTTP METHOD</label><select class="field" id="apiMethod"></select></div>
-                                <div class="form-row"><label>API PATH (LIVE ROUTES)</label><input class="field mono" id="apiPath" list="apiPaths" value="/admin/models" placeholder="Select or type an API path"><datalist id="apiPaths"></datalist></div>
+                                <div class="form-row"><label>API PATH (LIVE ROUTES)</label><select class="field mono" id="apiPath"></select></div><div class="form-row"><label>MODEL</label><select class="field mono" id="apiModel"></select></div>
                                 <div class="form-row full"><div class="sub" id="apiRouteHelp">Loading API routes…</div></div>
                                 <div class="form-row full"><label>JSON BODY</label><textarea class="field mono"
                                         id="apiBody"
@@ -1689,11 +1683,12 @@
                 <section class="view" id="view-transport">
                     <div class="page-head"><div><h1 class="page-title">Client transports</h1><p class="sub">Copy and run examples against the current gateway address.</p></div><span class="tag green" id="transportBase"></span></div>
                     <div class="panel"><div class="panel-head"><div class="panel-title">Choose a client</div></div><div class="panel-body">
-                        <div class="form-grid"><div class="form-row"><label>LANGUAGE / TRANSPORT</label><select class="field" id="transportChoice"><option value="curl">cURL · TCP</option><option value="python">Python · TCP</option><option value="php">PHP · TCP</option><option value="typescript">TypeScript · TCP</option><option value="uds-curl">cURL · Unix socket</option><option value="uds-python">Python · Unix socket</option><option value="uds-php">PHP · Unix socket</option><option value="uds-typescript">TypeScript · Unix socket</option></select></div><div class="form-row"><label>GATEWAY UNIX SOCKET</label><input class="field mono" id="transportSocket" value="/tmp/gateway.sock"></div></div>
+                        <div class="form-grid"><div class="form-row"><label>LANGUAGE / TRANSPORT</label><select class="field" id="transportChoice"><option value="curl">cURL · TCP</option><option value="python">Python · TCP</option><option value="php">PHP · TCP</option><option value="typescript">TypeScript · TCP</option><option value="uds-curl">cURL · Unix socket</option><option value="uds-python">Python · Unix socket</option><option value="uds-php">PHP · Unix socket</option><option value="uds-typescript">TypeScript · Unix socket</option></select></div><div class="form-row"><label>MODEL</label><select class="field mono" id="transportModel"></select></div><div class="form-row"><label>GATEWAY UNIX SOCKET</label><input class="field mono" id="transportSocket" value="/tmp/gateway.sock"></div></div>
                         <p class="sub" style="margin-top:12px">Examples include model listing, non-streaming chat, streaming chat, and tool calls. Unix socket clients use the local socket path; remote clients should use TCP behind an authenticated TLS reverse proxy.</p><pre id="transportCode" class="mono" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111517;border:1px solid #30363a;padding:14px;border-radius:6px"></pre><button class="btn" id="transportCopy">Copy example</button>
                     </div></div>
                     <div class="panel" style="margin-top:14px"><div class="panel-head"><div class="panel-title">Register an outbound UDS provider</div></div><div class="panel-body"><p class="sub">The gateway connects to the engine socket. Use an HTTP URL for URL construction and set the actual socket path. Runtime provider sync stores the provider and discovered models in SQLite.</p><pre id="transportUdsAdmin" class="mono" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111517;border:1px solid #30363a;padding:14px;border-radius:6px"># server/.env\nCP_LLAMA_UDS_KIND=llamacpp\nCP_LLAMA_UDS_BASE_URL=http://localhost\nCP_LLAMA_UDS_TRANSPORT=uds\nCP_LLAMA_UDS_SOCKET=/run/llama/llama.sock\nCP_LLAMA_UDS_CAPS=tools\n\n# Or create through the admin API (provider and models persist in SQLite)\ncurl -X POST __GATEWAY_BASE__/admin/providers -H 'content-type: application/json' -d '{"id":"llama-uds","kind":"llamacpp","base_url":"http://localhost","transport":"uds","socket_path":"/run/llama/llama.sock","caps":["tools"]}'\ncurl -X POST __GATEWAY_BASE__/admin/providers/llama-uds/sync</pre></div></div>
                 </section>
+                <section class="view" id="view-mcp"><div class="page-head"><div><h1 class="page-title">MCP tools</h1><p class="sub">Control the stdio MCP server and inspect recorded tool calls.</p></div><button class="btn" id="mcpRefresh">↻ Refresh</button></div><div class="grid stats"><div class="panel stat"><div class="stat-label">MCP status</div><div class="stat-value" id="mcpEnabled">—</div></div><div class="panel stat"><div class="stat-label">Tool calls</div><div class="stat-value" id="mcpCalls">—</div></div><div class="panel stat"><div class="stat-label">Failed calls</div><div class="stat-value" id="mcpFailed">—</div></div></div><div class="panel"><div class="panel-head"><div class="panel-title">MCP service</div><button class="btn green" id="mcpToggle">Enable / disable</button></div><div class="table-wrap" style="border:0"><table><thead><tr><th>TOOL</th><th>CALLS</th><th>FAILED</th><th>LAST CALL</th></tr></thead><tbody id="mcpTools"></tbody></table></div></div></section>
                 <section class="view" id="view-settings">
                     <div class="page-head">
                         <div>
@@ -1727,6 +1722,8 @@
                                         connection</button></div>
                             </div>
                         </div>
+                    </div>
+                    <div class="panel" style="margin-top:14px"><div class="panel-head"><div><div class="panel-title">Admin API authentication</div><div class="panel-desc">Off by default; admin keys are hashed in SQLite. Env auth remains enforced when GATEWAY_ADMIN_AUTH=1.</div></div></div><div class="panel-body"><div class="form-grid"><div class="form-row"><label>AUTH REQUIRED</label><select class="field" id="adminAuthEnabled"><option value="false">False · open</option><option value="true">True · key required</option></select></div><div class="form-row"><label>REGISTERED ADMIN KEY</label><select class="field" id="adminKeySelect"><option value="">Select key / use token below</option></select></div><div class="form-row full"><label>ADD / IMPORT ADMIN KEY (SECRET SHOWN ONCE)</label><div style="display:flex;gap:7px"><input class="field" id="adminKeyName" placeholder="Key label"><input class="field" id="adminKeyImport" type="password" placeholder="Paste existing key or leave blank to generate"><button class="btn" id="adminKeyCreate">Add key</button></div></div><div class="form-row full"><div id="adminKeyList" class="sub">Loading keys…</div></div><div class="form-row full"><button class="btn green" id="saveAdminAuth">Save authentication mode</button></div></div></div></div>
                     </div>
                 </section>
             </main>
@@ -1775,52 +1772,26 @@
         let apiRouteDocs = [];
 
         async function loadApiRoutes() {
-            const response = await api('/admin/routes');
-            apiRouteDocs = response.data || [];
-            const methods = [...new Set(apiRouteDocs.map(r => r.method))].sort((a, b) => ['GET', 'POST', 'PATCH', 'DELETE'].indexOf(a) - ['GET', 'POST', 'PATCH', 'DELETE'].indexOf(b));
-            $('#apiMethod').innerHTML = methods.map(m => `<option>${esc(m)}</option>`).join('');
-            renderApiPaths();
-            applyRouteBody();
+            const response=await api('/admin/routes'); apiRouteDocs=response.data||[];
+            const methods=[...new Set(apiRouteDocs.map(r=>r.method))].sort((a,b)=>['GET','POST','PATCH','DELETE'].indexOf(a)-['GET','POST','PATCH','DELETE'].indexOf(b));
+            $('#apiMethod').innerHTML=methods.map(m=>`<option>${esc(m)}</option>`).join(''); renderApiPaths(); renderApiModels(); applyRouteBody();
         }
+        function renderApiModels() { const sel=$('#apiModel'), old=sel.value; sel.innerHTML=models.map(m=>`<option value="${esc(m.id)}">${esc(m.id)}</option>`).join('')||'<option value="">No models</option>'; if(models.some(m=>m.id===old))sel.value=old }
         function renderApiPaths() {
-            const method = $('#apiMethod').value;
-            const matching = apiRouteDocs.filter(r => r.method === method);
-            const paths = matching.flatMap(r => r.path.includes(':id') && providers.length
-                ? providers.map(p => ({ ...r, path: r.path.replace(':id', encodeURIComponent(p.id)) }))
-                : [r]);
-            $('#apiPaths').innerHTML = paths.map(r => `<option value="${esc(r.path)}"></option>`).join('');
-            const exact = paths.find(r => r.path === $('#apiPath').value);
-            if (!exact && matching.length && !$('#apiPath').dataset.touched) $('#apiPath').value = matching[0].path;
-            const selected = paths.find(r => r.path === $('#apiPath').value);
-            $('#apiRouteHelp').textContent = selected ? selected.purpose + (selected.body ? ' · JSON body required' : '') : 'Custom path; use a path listed by GET /admin/routes.';
+            const method=$('#apiMethod').value, matching=apiRouteDocs.filter(r=>r.method===method);
+            const paths=matching.flatMap(r=>{if(!r.path.includes(':id'))return[r];if(r.path.startsWith('/admin/providers/'))return providers.map(p=>({...r,path:r.path.replace(':id',encodeURIComponent(p.id))}));if(r.path.startsWith('/admin/users/'))return apiUsers.map(u=>({...r,path:r.path.replace(':id',encodeURIComponent(u.id))}));return[r]});
+            const select=$('#apiPath'), old=select.value; select.innerHTML=paths.map(r=>`<option value="${esc(r.path)}">${esc(r.path)}</option>`).join(''); if(paths.some(r=>r.path===old))select.value=old; else if(paths.length)select.value=paths[0].path;
+            const selected=paths.find(r=>r.path===select.value); $('#apiRouteHelp').textContent=selected?selected.purpose+(selected.body?' · JSON body required':''):'No route for this method.';
         }
         function applyRouteBody() {
-            const path = $('#apiPath').value;
-            const defaultModel = (models.find(m => m.id.startsWith('ollama/')) || models[0] || {}).id || 'provider/model';
-            const embeddingModel = (models.find(m => m.caps.includes('embeddings')) || {}).id || 'provider/embedding-model';
-            const samples = {
-                '/v1/chat/completions': { model: defaultModel, messages: [{ role: 'user', content: 'Say ready.' }], max_tokens: 256 },
-                '/chat/completions': { model: defaultModel, messages: [{ role: 'user', content: 'Say ready.' }], max_tokens: 256 },
-                '/v1/messages': { model: defaultModel, max_tokens: 32, messages: [{ role: 'user', content: 'Say ready.' }] },
-                '/messages': { model: defaultModel, max_tokens: 32, messages: [{ role: 'user', content: 'Say ready.' }] },
-                '/v1/messages/count_tokens': { model: defaultModel, messages: [{ role: 'user', content: 'Say ready.' }] },
-                '/messages/count_tokens': { model: defaultModel, messages: [{ role: 'user', content: 'Say ready.' }] },
-                '/v1/embeddings': { model: embeddingModel, input: 'Text to embed' },
-                '/embeddings': { model: embeddingModel, input: 'Text to embed' },
-                '/admin/providers': { id: 'provider-example', kind: 'openai', base_url: 'http://127.0.0.1:9000/v1' },
-                '/admin/models/load': { model: defaultModel, keep_alive: '5m' },
-                '/admin/models/unload': { model: defaultModel },
-            };
-            const method = $('#apiMethod').value;
-            const sample = ['POST', 'PATCH'].includes(method)
-                ? (samples[path] || (path.includes('/admin/providers/') && method === 'PATCH' ? { notes: 'Updated from API Console' } : null))
-                : null;
-            $('#apiBody').value = sample ? JSON.stringify(sample, null, 2) : '';
+            const path=$('#apiPath').value, selectedModel=$('#apiModel').value||'provider/model', embeddingModel=(models.find(m=>m.caps.includes('embeddings'))||{}).id||selectedModel;
+            const samples={'/v1/chat/completions':{model:selectedModel,messages:[{role:'user',content:'Say ready.'}],max_tokens:256},'/chat/completions':{model:selectedModel,messages:[{role:'user',content:'Say ready.'}],max_tokens:256},'/v1/messages':{model:selectedModel,max_tokens:32,messages:[{role:'user',content:'Say ready.'}]},'/messages':{model:selectedModel,max_tokens:32,messages:[{role:'user',content:'Say ready.'}]},'/v1/messages/count_tokens':{model:selectedModel,messages:[{role:'user',content:'Say ready.'}]},'/messages/count_tokens':{model:selectedModel,messages:[{role:'user',content:'Say ready.'}]},'/v1/embeddings':{model:embeddingModel,input:'Text to embed'},'/embeddings':{model:embeddingModel,input:'Text to embed'},'/admin/models/context':{model:selectedModel,context_length:8192},'/admin/models/status':{model:selectedModel,enabled:true},'/admin/models/load':{model:selectedModel,keep_alive:'5m'},'/admin/models/unload':{model:selectedModel},'/admin/users':{username:'api-user',role:'inference',context_limit:8192,token_limit:100000},'/admin/providers':{id:'provider-example',kind:'openai',base_url:'http://127.0.0.1:9000/v1'},'/admin/auth':{enabled:true},'/admin/mcp':{enabled:true}};
+            let sample=['POST','PATCH'].includes($('#apiMethod').value)?(samples[path]||(path.includes('/admin/providers/')?{notes:'Updated via API Console'}:null)):null;
+            $('#apiBody').value=sample?JSON.stringify(sample,null,2):'';
         }
-        $('#apiMethod').onchange = () => { renderApiPaths(); applyRouteBody() };
-        $('#apiPath').addEventListener('input', () => { $('#apiPath').dataset.touched = '1'; renderApiPaths() });
-        $('#apiPath').addEventListener('change', () => { $('#apiPath').dataset.touched = ''; renderApiPaths(); applyRouteBody() });
-
+        $('#apiMethod').onchange=()=>{renderApiPaths();applyRouteBody()};
+        $('#apiPath').onchange=()=>{applyRouteBody()};
+        $('#apiModel').onchange=()=>applyRouteBody();
         const transportSamples = {
             curl: b => `# OpenAI-compatible model list\ncurl -fsS ${b}/v1/models\n\n# Non-streaming chat\ncurl -fsS ${b}/v1/chat/completions -H 'content-type: application/json' -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"Say ready."}],"max_tokens":32}'\n\n# Streaming chat\ncurl -N ${b}/v1/chat/completions -H 'content-type: application/json' -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"Count to three."}],"stream":true}'\n\n# Tool call request\ncurl -fsS ${b}/v1/chat/completions -H 'content-type: application/json' -d '{"model":"ollama/lfm3:1.7b","messages":[{"role":"user","content":"What is 2+2?"}],"tools":[{"type":"function","function":{"name":"calculator","description":"Calculate arithmetic","parameters":{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}}}],"tool_choice":"auto"}'`,
             python: b => `from openai import OpenAI\nclient = OpenAI(base_url="${b}/v1", api_key="local")\n\n# Non-streaming\nr = client.chat.completions.create(model="ollama/lfm3:1.7b", messages=[{"role":"user","content":"Say ready."}], max_tokens=32)\nprint(r.choices[0].message.content)\n\n# Streaming\nfor part in client.chat.completions.create(model="ollama/lfm3:1.7b", messages=[{"role":"user","content":"Count to three."}], stream=True):\n    print(part.choices[0].delta.content or "", end="", flush=True)\n\n# Tool calling\nr = client.chat.completions.create(model="ollama/lfm3:1.7b", messages=[{"role":"user","content":"What is 2+2?"}], tools=[{"type":"function","function":{"name":"calculator","description":"Calculate arithmetic","parameters":{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}}}], tool_choice="auto")\nprint(r.choices[0].message.tool_calls)`,
@@ -1835,7 +1806,7 @@
             const key = $('#transportChoice').value;
             const isUds = key.startsWith('uds-');
             const target = isUds ? ($('#transportSocket').value.trim() || '/tmp/gateway.sock') : state.base.replace(/\/$/, '');
-            const model = (models.find(m => m.id.startsWith('ollama/')) || models[0] || {}).id || 'provider/model';
+            const transportSelect=$('#transportModel'),previous=transportSelect.value; transportSelect.innerHTML=models.filter(m=>m.enabled&&m.providerEnabled).map(m=>`<option value="${esc(m.id)}">${esc(m.id)}</option>`).join('')||'<option value="">No enabled models</option>'; if(models.some(m=>m.id===previous&&m.enabled&&m.providerEnabled))transportSelect.value=previous; const model=transportSelect.value||(models.find(m=>m.enabled&&m.providerEnabled)||{}).id||'provider/model';
             $('#transportBase').textContent = (isUds ? 'UDS · local socket' : target) + ' · model ' + model;
             $('#transportCode').textContent = transportSamples[key](target).replaceAll('ollama/lfm3:1.7b', model);
             const udsDocs = $('#transportUdsAdmin');
@@ -1843,6 +1814,7 @@
             udsDocs.textContent = udsDocs.dataset.template.replace(/__GATEWAY_BASE__/g, state.base.replace(/\/$/, ''));
         }
         $('#transportChoice').onchange = renderTransportExample;
+        $('#transportModel').onchange = renderTransportExample;
         $('#transportSocket').oninput = renderTransportExample;
         $('#transportCopy').onclick = () => navigator.clipboard?.writeText($('#transportCode').textContent).then(() => toast('Example copied')).catch(() => toast('Clipboard unavailable'));
 
@@ -1896,7 +1868,7 @@
             const body = await api('/admin/models?include_disabled=1');
             models = (body.data || []).map(m => ({
                 id: m.full_id, providerId: m.provider_id, provider: m.provider_id, kind: (providers.find(p => p.id === m.provider_id) || {}).kind || m.provider_id,
-                caps: m.caps || [], context: ctxLabel(m.context_length), contextLength: m.context_length,
+                caps: m.caps || [], context: ctxLabel(m.context_length), contextLength: m.context_length, contextSource: m.context_length_source, enabled: m.enabled !== false, usage: m.usage || {}, firstSeen: m.first_seen_at,
                 upstream: m.upstream_id, family: m.family, quant: m.quantization, size: m.size_bytes,
                 source: m.source, lastSeen: m.last_seen_at, providerEnabled: !!m.provider_enabled
             }));
@@ -2068,31 +2040,22 @@
         $$('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
 
         function renderModels() {
-            const q = ($('#modelSearch')?.value || '').toLowerCase();
-            const pf = $('#modelProviderFilter')?.value || 'all';
-            const sf = $('#modelStatusFilter')?.value || 'all';
-            const list = models.filter(m => (m.id + ' ' + m.provider + ' ' + m.caps.join(' ')).toLowerCase().includes(q)
-                && (pf === 'all' || m.providerId === pf)
-                && (sf === 'all' || (sf === 'loaded' ? loaded.has(m.id) : !loaded.has(m.id))));
-            $('#modelsGrid').innerHTML = list.map(m => `<article class="model-card"><div class="model-card-head"><div><div class="model-card-name">${esc(m.id)}</div><div class="model-card-meta">${esc(m.provider)} · ${esc(m.kind)}</div></div>${!m.providerEnabled ? '<span class="tag red">Provider disabled</span>' : loaded.has(m.id) ? '<span class="tag green">Loaded</span>' : '<span class="tag">Available</span>'}</div><div class="model-card-tags">${m.caps.map(c => `<span class="tag">${esc(c)}</span>`).join(' ')}</div><div class="model-card-stats"><div class="model-card-stat"><span>Context</span><strong>${esc(m.context)}</strong></div><div class="model-card-stat"><span>Provider ID</span><strong class="mono">${esc(m.providerId)}</strong></div></div><div class="model-card-actions"><button class="btn" data-model-detail="${esc(m.id)}">Inspect</button><button class="btn ${loaded.has(m.id) ? 'danger' : 'softgreen'}" data-model-toggle="${esc(m.id)}">${loaded.has(m.id) ? 'Unload' : 'Load'}</button><button class="btn" data-model-chat="${esc(m.id)}">Test chat</button></div></article>`).join('');
-            $('#modelCount').textContent = list.length + ' model' + (list.length === 1 ? '' : 's');
-            $('#modelCountBadge').textContent = list.length + ' shown';
-            $('#modelsEmpty').style.display = list.length ? 'none' : 'block';
-            const filter = $('#modelProviderFilter');
-            const current = filter.value;
-            filter.innerHTML = '<option value="all">All providers</option>' + providers.map(p => `<option value="${esc(p.id)}">${esc(p.id)}</option>`).join('');
-            if ([...filter.options].some(o => o.value === current)) filter.value = current;
-            $$('[data-model-detail]').forEach(b => b.onclick = () => modelDetail(b.dataset.modelDetail));
-            $$('[data-model-toggle]').forEach(b => b.onclick = () => toggleModel(b.dataset.modelToggle));
-            $$('[data-model-chat]').forEach(b => b.onclick = () => { go('chat'); $('#chatModel').value = b.dataset.modelChat; $('#chatPrompt').focus() });
+            const q = ($('#modelSearch')?.value || '').toLowerCase(), pf = $('#modelProviderFilter')?.value || 'all', sf = $('#modelStatusFilter')?.value || 'all';
+            const list = models.filter(m => (m.id + ' ' + m.provider + ' ' + m.caps.join(' ')).toLowerCase().includes(q) && (pf === 'all' || m.providerId === pf) && (sf === 'all' || (sf === 'enabled' ? m.enabled : !m.enabled)));
+            $('#modelsGrid').innerHTML = list.map(m => { const usage=m.usage||{}; return `<article class="model-card"><div class="model-card-head"><div><div class="model-card-name">${esc(m.id)}</div><div class="model-card-meta">${esc(m.provider)} · ${esc(m.kind)}</div></div><span class="tag ${m.enabled && m.providerEnabled ? 'green' : 'red'}">${m.enabled && m.providerEnabled ? (loaded.has(m.id) ? 'Loaded' : 'Enabled') : 'Disabled'}</span></div><div class="model-card-tags">${m.caps.map(c => `<span class="tag">${esc(c)}</span>`).join(' ')}</div><div class="model-card-stats"><div class="model-card-stat"><span>Context window</span><strong>${esc(ctxLabel(m.contextLength))}</strong></div><div class="model-card-stat"><span>Total requests</span><strong>${num(usage.requests)}</strong></div><div class="model-card-stat"><span>Tokens used</span><strong>${num(usage.tokens)}</strong></div><div class="model-card-stat"><span>Provider ID</span><strong class="mono">${esc(m.providerId)}</strong></div></div><div class="model-card-actions"><button class="btn" data-model-detail="${esc(m.id)}">Inspect</button><button class="btn ${m.enabled?'danger':'softgreen'}" data-model-enabled="${esc(m.id)}">${m.enabled?'Turn off':'Turn on'}</button><button class="btn ${loaded.has(m.id) ? 'danger' : 'softgreen'}" data-model-toggle="${esc(m.id)}">${loaded.has(m.id) ? 'Unload' : 'Load'}</button><button class="btn" data-model-chat="${esc(m.id)}" ${m.enabled?'':'disabled'}>Test chat</button></div></article>` }).join('');
+            $('#modelCount').textContent = list.length + ' model' + (list.length === 1 ? '' : 's'); $('#modelCountBadge').textContent = list.length + ' shown'; $('#modelsEmpty').style.display = list.length ? 'none' : 'block';
+            const filter=$('#modelProviderFilter'), current=filter.value; filter.innerHTML='<option value="all">All providers</option>'+providers.map(p=>`<option value="${esc(p.id)}">${esc(p.id)}</option>`).join(''); if ([...filter.options].some(o=>o.value===current)) filter.value=current;
+            $$('[data-model-detail]').forEach(b=>b.onclick=()=>modelDetail(b.dataset.modelDetail)); $$('[data-model-toggle]').forEach(b=>b.onclick=()=>toggleModel(b.dataset.modelToggle)); $$('[data-model-enabled]').forEach(b=>b.onclick=()=>toggleCatalogModel(b.dataset.modelEnabled)); $$('[data-model-chat]').forEach(b=>b.onclick=()=>{go('chat');$('#chatModel').value=b.dataset.modelChat;$('#chatPrompt').focus()});
         }
 
         function modelDetail(id) {
-            const m = models.find(x => x.id === id); if (!m) return;
-            openModal('Model details', `<div class="detail-grid"><div class="detail-cell" style="grid-column:span 2"><div class="k">MODEL ID</div><div class="v mono">${esc(m.id)}</div></div><div class="detail-cell"><div class="k">PROVIDER</div><div class="v">${esc(m.provider)}</div></div><div class="detail-cell"><div class="k">KIND</div><div class="v">${esc(m.kind)}</div></div><div class="detail-cell"><div class="k">CONTEXT WINDOW</div><div class="v">${esc(m.context)}</div><div style="display:flex;gap:6px;margin-top:8px"><input class="field" id="modelContextEdit" type="number" min="1" placeholder="Tokens" value="${m.contextLength || ''}"><button class="btn small" id="saveModelContext">Save</button></div></div><div class="detail-cell"><div class="k">STATE</div><div class="v">${loaded.has(m.id) ? 'Loaded' : 'Available'}</div></div><div class="detail-cell" style="grid-column:span 2"><div class="k">UPSTREAM ID</div><div class="v mono">${esc(m.upstream)}</div></div><div class="detail-cell"><div class="k">FAMILY</div><div class="v">${esc(m.family || '—')}</div></div><div class="detail-cell"><div class="k">QUANT</div><div class="v">${esc(m.quant || '—')}</div></div><div class="detail-cell"><div class="k">SIZE</div><div class="v">${m.size ? Math.round(m.size / 1024 / 1024) + ' MB' : '—'}</div></div><div class="detail-cell"><div class="k">CAPABILITIES</div><div class="v">${esc(m.caps.join(', ') || '—')}</div></div><div class="detail-cell"><div class="k">LAST SEEN</div><div class="v">${esc(rel(m.lastSeen))}</div></div></div>`,
-                [{ label: loaded.has(m.id) ? 'Unload model' : 'Load model', cls: loaded.has(m.id) ? 'danger' : 'green', fn: () => { toggleModel(m.id); closeModal() } }]);
-            $('#saveModelContext').onclick = async () => { const raw = $('#modelContextEdit').value; try { const v = raw ? Number(raw) : null; await api('/admin/models/context', { method: 'PATCH', body: JSON.stringify({ model: m.id, context_length: v }) }); m.contextLength = v; m.context = ctxLabel(v); renderModels(); toast('Context window saved'); } catch(e) { toast('Context save failed: ' + e.message) } };
+            const m=models.find(x=>x.id===id); if(!m)return; const u=m.usage||{};
+            openModal('Model details', `<div class="detail-grid"><div class="detail-cell" style="grid-column:span 2"><div class="k">MODEL ID</div><div class="v mono">${esc(m.id)}</div></div><div class="detail-cell"><div class="k">PROVIDER</div><div class="v">${esc(m.provider)}</div></div><div class="detail-cell"><div class="k">KIND</div><div class="v">${esc(m.kind)}</div></div><div class="detail-cell"><div class="k">CONTEXT WINDOW · ${esc(m.contextSource||'provider')}</div><div class="v">${esc(ctxLabel(m.contextLength))} tokens</div><div style="display:flex;gap:6px;margin-top:8px"><input class="field" id="modelContextEdit" type="number" min="1" placeholder="Tokens" value="${m.contextLength||''}"><button class="btn small" id="saveModelContext">Save</button></div></div><div class="detail-cell"><div class="k">MODEL STATUS</div><div class="v">${m.enabled?'Enabled':'Disabled'}</div><button class="btn small ${m.enabled?'danger':'softgreen'}" id="modelStatusToggle" style="margin-top:7px">${m.enabled?'Turn off':'Turn on'}</button></div><div class="detail-cell"><div class="k">RUNTIME</div><div class="v">${loaded.has(m.id)?'Loaded':'Not loaded'}</div></div><div class="detail-cell"><div class="k">PROVIDER STATUS</div><div class="v">${m.providerEnabled?'Enabled':'Disabled'}</div></div><div class="detail-cell" style="grid-column:span 2"><div class="k">UPSTREAM ID</div><div class="v mono">${esc(m.upstream)}</div></div><div class="detail-cell"><div class="k">FAMILY</div><div class="v">${esc(m.family||'—')}</div></div><div class="detail-cell"><div class="k">QUANT</div><div class="v">${esc(m.quant||'—')}</div></div><div class="detail-cell"><div class="k">SIZE</div><div class="v">${m.size?Math.round(m.size/1024/1024)+' MB':'—'}</div></div><div class="detail-cell"><div class="k">CAPABILITIES</div><div class="v">${esc(m.caps.join(', ')||'—')}</div></div><div class="detail-cell"><div class="k">SOURCE</div><div class="v">${esc(m.source||'—')}</div></div><div class="detail-cell"><div class="k">FIRST SEEN</div><div class="v">${esc(m.firstSeen||'—')}</div></div><div class="detail-cell"><div class="k">LAST SEEN</div><div class="v">${esc(rel(m.lastSeen))}</div></div><div class="detail-cell"><div class="k">TOTAL REQUESTS</div><div class="v">${num(u.requests)}</div></div><div class="detail-cell"><div class="k">SUCCESS / FAILED</div><div class="v">${num(u.successes)} / ${num(u.failures)}</div></div><div class="detail-cell"><div class="k">TOKENS USED</div><div class="v">${num(u.tokens)}</div></div></div>`, [{label:loaded.has(m.id)?'Unload model':'Load model',cls:loaded.has(m.id)?'danger':'green',fn:()=>{toggleModel(m.id);closeModal()}}]);
+            $('#saveModelContext').onclick=async()=>{const raw=$('#modelContextEdit').value;try{const v=raw?Number(raw):null;await api('/admin/models/context',{method:'PATCH',body:JSON.stringify({model:m.id,context_length:v})});m.contextLength=v;m.context=ctxLabel(v);toast('Context window saved');await loadModels();modelDetail(id)}catch(e){toast('Context save failed: '+e.message)}};
+            $('#modelStatusToggle').onclick=async()=>{await toggleCatalogModel(id);closeModal()};
         }
+
+        async function toggleCatalogModel(id) { const m=models.find(x=>x.id===id); if(!m)return; try { await api('/admin/models/status',{method:'PATCH',body:JSON.stringify({model:id,enabled:!m.enabled})}); toast(id+(m.enabled?' disabled':' enabled')); await loadModels(); await loadRequests(); } catch(e) { toast('Model status update failed: '+e.message) } }
 
         async function toggleModel(id) {
             const isLoaded = loaded.has(id);
@@ -2342,7 +2305,7 @@
         }
 
         // ------------------------------------------------------------- chat ---
-        function populateChatModels() { const sel = $('#chatModel'); if (!sel) return; const old = sel.value; sel.innerHTML = models.map(m => `<option value="${esc(m.id)}">${esc(m.id)}</option>`).join('') || '<option value="">no models</option>'; if (models.some(m => m.id === old)) sel.value = old }
+        function populateChatModels() { const sel = $('#chatModel'); if (!sel) return; const old = sel.value; sel.innerHTML = models.filter(m=>m.enabled&&m.providerEnabled).map(m => `<option value="${esc(m.id)}">${esc(m.id)}</option>`).join('') || '<option value="">no models</option>'; if (models.some(m => m.id === old)) sel.value = old }
         const chatMessages = [];
         function paintChat() { const box = $('#chatTranscript'); box.innerHTML = chatMessages.length ? chatMessages.map(m => `<div class="chat-msg ${m.role === 'user' ? 'user' : 'assistant'}">${esc(m.content || '')}</div>`).join('') : '<div class="chat-empty"><strong>Ready to test a model</strong>Select a model, enter a prompt, and send it. The response will appear here.</div>'; box.scrollTop = box.scrollHeight }
         async function sendChat() {

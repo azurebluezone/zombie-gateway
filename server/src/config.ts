@@ -84,6 +84,8 @@ export interface GatewayConfig {
   adminOrigins: string[];
   identityHeaders: boolean;
   identityFile: string;
+  /** Put the system identity into the prompt so a model can name it. */
+  identityPrompt: boolean;
   /** Prompt hygiene: strip carriers, report only, or leave untouched. */
   sanitize: SanitizeMode;
   /** Refuse requests that cannot fit the model's context window. */
@@ -419,6 +421,7 @@ export function readGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
     adminOrigins: readOrigins(env["GATEWAY_ADMIN_ORIGINS"]),
     identityHeaders: env["GATEWAY_IDENTITY_HEADERS"] !== "0",
     identityFile: resolveOptionalPath(env["GATEWAY_IDENTITY_FILE"]),
+    identityPrompt: env["GATEWAY_IDENTITY_PROMPT"] !== "0",
     // Default strip: a carrier that reaches the engine has already done its job.
     sanitize: readSanitizeMode(env["GATEWAY_SANITIZE"]),
     contextEnforce: readBoolean(env["GATEWAY_CONTEXT_ENFORCE"]) ?? true,

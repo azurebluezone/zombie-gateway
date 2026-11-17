@@ -105,6 +105,13 @@ export function createTools(http) {
       },
     },
     {
+      name: "gateway_mcp_sessions",
+      description:
+        "Connected MCP clients and the full tool list: session id, client name/version, transport, negotiated protocol, request count and last method. Use this to answer who is connected and how many tools exist.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      handler: async () => (await http("/admin/mcp/sessions")).body,
+    },
+    {
       name: "gateway_chat",
       description:
         "Send one non-streaming chat completion through the gateway and return the answer with model, usage and latency. This consumes local CPU; keep max_tokens small.",
@@ -150,3 +157,11 @@ export function createTools(http) {
     },
   ];
 }
+
+/**
+ * Tool names in registry order. Handlers are never invoked here, so a stub
+ * caller is enough and the admin API gets the same list MCP publishes.
+ */
+export const TOOL_NAMES = createTools(() => {
+  throw new Error("tool names do not call handlers");
+}).map((tool) => tool.name);

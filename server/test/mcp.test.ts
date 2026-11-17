@@ -305,7 +305,8 @@ test("MCP routes answer over HTTP, HTTPS and legacy SSE", async (t) => {
     const list = await rpc(gateway.base, { jsonrpc: "2.0", id: 11, method: "tools/list" }, session, protocol);
     assert.equal(list.status, 200);
     const tools = (parseJson(list.text, "tools/list").result?.["tools"] ?? []) as Array<{ name: string }>;
-    assert.equal(tools.length, 7);
+    assert.equal(tools.length, 8);
+    assert.ok(tools.some((tool) => tool.name === "gateway_mcp_sessions"));
     assert.ok(tools.some((tool) => tool.name === "gateway_health"));
 
     const call = await rpc(
@@ -326,8 +327,15 @@ test("MCP routes answer over HTTP, HTTPS and legacy SSE", async (t) => {
     });
     assert.equal(removed.status, 204);
 
-    const stale = await rpc(gateway.base, { jsonrpc: "2.0", id: 13, method: "tools/list" }, session, protocol);
-    assert.equal(stale.status, 400);
+    // A deleted session id is stale. The gateway now opens a fresh implicit
+    // session instead of dead-ending the client with `-32600`.
+    const revived = await rpc(gateway.base, { jsonrpc: "2.0", id: 13, method: "tools/list" }, session, protocol);
+    assert.equal(revived.status, 200);
+    const revivedSession = revived.headers["mcp-session-id"];
+    assert.ok(typeof revivedSession === "string" && revivedSession.length >= 8, "missing revived Mcp-Session-Id");
+    assert.notEqual(revivedSession, session);
+    const revivedTools = (parseJson(revived.text, "revived tools/list").result?.["tools"] ?? []) as Array<{ name: string }>;
+    assert.equal(revivedTools.length, 8);
   });
 
   await t.test("an unsupported protocol header is rejected", async () => {

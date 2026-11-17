@@ -146,6 +146,33 @@ const MIGRATIONS: string[] = [
   ALTER TABLE request_logs ADD COLUMN user_id TEXT REFERENCES gateway_users(id) ON DELETE SET NULL;
   CREATE INDEX idx_logs_user ON request_logs(user_id, ts);
   `,
+  `
+  ALTER TABLE models ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
+  CREATE TABLE gateway_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE admin_api_keys (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    key_hash TEXT NOT NULL UNIQUE,
+    key_prefix TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    last_used_at TEXT
+  );
+  CREATE INDEX idx_admin_api_keys_hash ON admin_api_keys(key_hash);
+  CREATE TABLE mcp_call_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tool_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    duration_ms INTEGER NOT NULL,
+    ts TEXT NOT NULL
+  );
+  CREATE INDEX idx_mcp_call_ts ON mcp_call_logs(ts);
+  ALTER TABLE request_logs ADD COLUMN route TEXT NOT NULL DEFAULT '/v1/chat/completions';
+  `,
 ];
 
 let instance: DatabaseSync | null = null;

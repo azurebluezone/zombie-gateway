@@ -236,7 +236,12 @@ export async function startFixture(
       }
 
       res.writeHead(200, { "content-type": "application/json" });
-      if (text.includes("MODE:NO_USAGE")) {
+      if (text.includes("MODE:ECHO_MESSAGES")) {
+        // Test double for prompt inspection: the completion body carries the
+        // exact message list the gateway sent, so a test can assert what the
+        // model would have read.
+        res.end(JSON.stringify(completion(JSON.stringify(body.messages ?? []))));
+      } else if (text.includes("MODE:NO_USAGE")) {
         const noUsage = completion("estimated fixture response") as Record<string, unknown>;
         delete noUsage["usage"];
         res.end(JSON.stringify(noUsage));

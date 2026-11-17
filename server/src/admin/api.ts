@@ -25,6 +25,8 @@ import type { ProviderConfig } from "../config.ts";
 import { json, readJson } from "../core/respond.ts";
 import { providerSchema } from "./schema.ts";
 import { openUpstream, probeJson, readBody } from "../transport/request.ts";
+import { snapshotMcpSessions } from "../mcp/http.ts";
+import { TOOL_NAMES } from "../../scripts/mcp-tools.mjs";
 
 const ADMIN_BODY_LIMIT = 1024 * 1024;
 const startedAt = Date.now();
@@ -69,7 +71,15 @@ const ROUTES: RouteDoc[] = [
   { method: "GET", path: "/admin/models", purpose: "Catalogue with provider state.", query: { provider: "id", include_disabled: "1" } },
   { method: "GET", path: "/admin/users", purpose: "List issued gateway users and quota usage." },
   { method: "POST", path: "/admin/users", purpose: "Create a user and issue an API key (returned once).", body: { username: "name", starts_at: "ISO date", expires_at: "ISO date|null", context_limit: "tokens|null", token_limit: "tokens|null", role: "inference|read_only" } },
+  { method: "GET", path: "/admin/users/:id", purpose: "Usage detail for one API user." },
+  { method: "DELETE", path: "/admin/users/:id", purpose: "Permanently delete a user and revoke its key." },
+  { method: "GET", path: "/admin/auth", purpose: "Admin auth switch and registered key metadata." },
+  { method: "POST", path: "/admin/auth", purpose: "Toggle optional DB-backed admin-key enforcement.", body: { enabled: "boolean" } },
+  { method: "GET", path: "/admin/admin-keys", purpose: "List admin keys (hashes/secrets never returned)." },
+  { method: "POST", path: "/admin/admin-keys", purpose: "Create or import an admin API key; returned once.", body: { name: "label", api_key: "optional existing secret" } },
+  { method: "DELETE", path: "/admin/admin-keys/:id", purpose: "Revoke an admin API key." },
   { method: "PATCH", path: "/admin/models/context", purpose: "Set or clear a model context window (tokens).", body: { model: "provider/model", context_length: "integer|null" } },
+  { method: "PATCH", path: "/admin/models/status", purpose: "Enable or disable a catalogue model.", body: { model: "provider/model", enabled: "boolean" } },
   { method: "POST", path: "/admin/models/load", purpose: "Warm a model into RAM (ollama only).", body: { model: "provider/model", keep_alive: "30m" } },
   { method: "POST", path: "/admin/models/unload", purpose: "Drop a model from RAM (ollama only).", body: { model: "provider/model" } },
   { method: "GET", path: "/admin/runtime", purpose: "Live reachability and loaded models per provider." },
@@ -77,19 +87,29 @@ const ROUTES: RouteDoc[] = [
   { method: "GET", path: "/admin/requests", purpose: "Most recent request log rows.", query: { limit: "20", provider: "id" } },
   { method: "GET", path: "/admin/sessions", purpose: "Admin panel sessions (one row per WebSocket handshake), newest first.", query: { limit: "50", open: "1" } },
   { method: "GET", path: "/admin/model-stats", purpose: "Per-model runtime: calls, errors, avg/max latency, tokens, last request.", query: { window_ms: "3600000" } },
+  { method: "GET", path: "/admin/mcp", purpose: "MCP enabled state and tool-call totals." },
+  { method: "GET", path: "/admin/mcp/sessions", purpose: "Connected MCP clients, protocol, transport and request counts." },
+  { method: "POST", path: "/admin/mcp", purpose: "Enable/disable MCP tool calls.", body: { enabled: "boolean" } },
+  { method: "POST", path: "/admin/mcp/calls", purpose: "Record a completed MCP tool call.", body: { tool: "tool-name", status: "success|error", duration_ms: "integer" } },
   { method: "GET", path: "/admin/logs", purpose: "Tail one server log file. Whitelisted names only.", query: { file: "access|gateway|llama-server|llama-model", limit: "200" } },
   { method: "GET", path: "/admin/metrics/ws", purpose: "Realtime metrics over WebSocket (also /admin/ws). Text frames only; first frame is a snapshot." },
 ];
 
 function authorized(ctx: AppContext, req: IncomingMessage): boolean {
-  if (!ctx.config.adminAuth) return true;
-  const token = ctx.config.adminToken;
-  if (!token) return false;
+  const setting = queryOne<{ value: string }>("SELECT value FROM gateway_settings WHERE key = 'admin_auth_enabled'");
+  const required = ctx.config.adminAuth || setting?.value === "true";
+  if (!required) return true;
   const header = req.headers["authorization"];
   const bearer = typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7) : null;
   const direct = req.headers["x-admin-token"];
   const supplied = bearer ?? (typeof direct === "string" ? direct : null);
-  return supplied !== null && supplied === token;
+  if (!supplied) return false;
+  if (ctx.config.adminToken && supplied === ctx.config.adminToken) return true;
+  const hash = createHash("sha256").update(supplied).digest("hex");
+  const key = queryOne<{ id: string }>("SELECT id FROM admin_api_keys WHERE key_hash = ? AND enabled = 1", hash);
+  if (!key) return false;
+  execute("UPDATE admin_api_keys SET last_used_at = ? WHERE id = ?", new Date().toISOString(), key.id);
+  return true;
 }
 
 function intParam(value: string | null, fallback: number): number {
@@ -320,6 +340,7 @@ export async function handleAdmin(
   }
 
   if (method === "GET" && path === "/admin/system") {
+    const dbAuth = queryOne<{ value: string }>("SELECT value FROM gateway_settings WHERE key='admin_auth_enabled'");
     json(res, 200, {
       object: "system",
       identity: ctx.identity.identity,
@@ -334,9 +355,9 @@ export async function handleAdmin(
       providers: ctx.registry.list(true).length,
       providers_enabled: ctx.registry.list().length,
       models: listPublicModels().length,
-      admin_auth: ctx.config.adminAuth,
+      admin_auth: ctx.config.adminAuth || dbAuth?.value === "true",
       admin_token_configured: ctx.config.adminToken !== null,
-      admin_token_required: ctx.config.adminAuth && ctx.config.adminToken !== null,
+      admin_token_required: ctx.config.adminAuth || dbAuth?.value === "true",
       user_auth: ctx.config.userAuth,
       admin_origins: ctx.config.adminOrigins,
       sanitize: ctx.config.sanitize,
@@ -369,11 +390,48 @@ export async function handleAdmin(
     return true;
   }
 
+  if (path === "/admin/auth" && method === "GET") {
+    const row = queryOne<{ value: string }>("SELECT value FROM gateway_settings WHERE key='admin_auth_enabled'");
+    const keys = queryAll<Record<string, unknown>>("SELECT id,name,key_prefix,enabled,created_at,last_used_at FROM admin_api_keys ORDER BY created_at DESC");
+    json(res, 200, { enabled: ctx.config.adminAuth || row?.value === "true", env_enforced: ctx.config.adminAuth, keys }); return true;
+  }
+  if (path === "/admin/auth" && method === "POST") {
+    const body = await readJson(req, ADMIN_BODY_LIMIT);
+    if (typeof body.enabled !== "boolean") throw new GatewayError({ message: "enabled must be boolean", status: 400, code: "invalid_request_error", param: "enabled" });
+    if (ctx.config.adminAuth && body.enabled === false) throw new GatewayError({ message: "Admin auth is enforced by GATEWAY_ADMIN_AUTH and cannot be disabled in the UI", status: 409, code: "invalid_request_error" });
+    execute(`INSERT INTO gateway_settings(key,value,updated_at) VALUES('admin_auth_enabled',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at`, String(body.enabled), new Date().toISOString());
+    json(res, 200, { object: "admin.auth", enabled: body.enabled || ctx.config.adminAuth, env_enforced: ctx.config.adminAuth }); return true;
+  }
+  if (path === "/admin/admin-keys" && method === "GET") {
+    json(res, 200, { object: "list", data: queryAll("SELECT id,name,key_prefix,enabled,created_at,last_used_at FROM admin_api_keys ORDER BY created_at DESC") }); return true;
+  }
+  if (path === "/admin/admin-keys" && method === "POST") {
+    const body = await readJson(req, ADMIN_BODY_LIMIT);
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const apiKey = typeof body.api_key === "string" && body.api_key ? body.api_key : `zga_${randomBytes(32).toString("base64url")}`;
+    if (!name || apiKey.length < 20) throw new GatewayError({ message: "name is required and api_key must be at least 20 characters", status: 400, code: "invalid_request_error" });
+    const id = randomUUID();
+    execute("INSERT INTO admin_api_keys(id,name,key_hash,key_prefix,created_at) VALUES(?,?,?,?,?)", id, name, createHash("sha256").update(apiKey).digest("hex"), apiKey.slice(0,12), new Date().toISOString());
+    json(res, 201, { object: "admin_api_key", id, name, api_key: apiKey, key_prefix: apiKey.slice(0,12), note: "Save this key now; it cannot be retrieved again." }); return true;
+  }
+  if (segments[1] === "admin-keys" && segments[2] && segments.length === 3 && method === "DELETE") {
+    execute("DELETE FROM admin_api_keys WHERE id=?", decodeURIComponent(segments[2])); json(res, 200, { object: "admin_api_key.revoked", id: decodeURIComponent(segments[2]) }); return true;
+  }
+
   if (path === "/admin/users" && method === "GET") {
     const data = queryAll<Record<string, unknown> & { id: string }>(`SELECT u.id,u.username,u.role,u.api_key_prefix,u.starts_at,u.expires_at,u.context_limit,u.token_limit,u.enabled,u.created_at,
       COALESCE(SUM(COALESCE(l.prompt_tokens,0)+COALESCE(l.completion_tokens,0)),0) AS tokens_used, COUNT(l.id) AS requests
       FROM gateway_users u LEFT JOIN request_logs l ON l.user_id=u.id GROUP BY u.id ORDER BY u.created_at DESC`);
     json(res, 200, { object: "list", data }); return true;
+  }
+  if (segments[1] === "users" && segments[2] && segments.length === 3 && method === "GET") {
+    const id = decodeURIComponent(segments[2]);
+    const user = queryOne<Record<string, unknown>>("SELECT id,username,role,api_key_prefix,starts_at,expires_at,context_limit,token_limit,enabled,created_at FROM gateway_users WHERE id=?", id);
+    if (!user) throw new GatewayError({ message: "User not found", status: 404, code: "invalid_request_error" });
+    const providers = queryAll(`SELECT provider_id,COUNT(*) requests,SUM(CASE WHEN status<400 THEN 1 ELSE 0 END) successful,SUM(CASE WHEN status>=400 THEN 1 ELSE 0 END) failed,SUM(COALESCE(prompt_tokens,0)+COALESCE(completion_tokens,0)) tokens FROM request_logs WHERE user_id=? AND provider_id IS NOT NULL GROUP BY provider_id ORDER BY requests DESC`, id);
+    const models = queryAll(`SELECT provider_id,model_id,COUNT(*) requests,SUM(CASE WHEN status<400 THEN 1 ELSE 0 END) successful,SUM(CASE WHEN status>=400 THEN 1 ELSE 0 END) failed,SUM(COALESCE(prompt_tokens,0)+COALESCE(completion_tokens,0)) tokens FROM request_logs WHERE user_id=? AND provider_id IS NOT NULL GROUP BY provider_id,model_id ORDER BY requests DESC`, id);
+    const recent = recentRequests(50, { userId: id });
+    json(res, 200, { object: "gateway_user.detail", user, providers, models, recent_requests: recent }); return true;
   }
   if (path === "/admin/users" && method === "POST") {
     const body = await readJson(req, ADMIN_BODY_LIMIT);
@@ -392,7 +450,7 @@ export async function handleAdmin(
   if (segments[1] === "users" && segments[2] && segments.length === 3 && method === "DELETE") {
     const result = queryOne<{ id: string }>("SELECT id FROM gateway_users WHERE id=?", decodeURIComponent(segments[2]));
     if (!result) throw new GatewayError({ message: "User not found", status: 404, code: "invalid_request_error" });
-    execute("UPDATE gateway_users SET enabled=0 WHERE id=?", result.id); json(res, 200, { object: "gateway_user", id: result.id, enabled: false }); return true;
+    execute("DELETE FROM gateway_users WHERE id=?", result.id); json(res, 200, { object: "gateway_user.deleted", id: result.id, deleted: true }); return true;
   }
 
   if (path === "/admin/providers") {
@@ -491,6 +549,8 @@ export async function handleAdmin(
     const provider = url.searchParams.get("provider") ?? undefined;
     const includeDisabled = url.searchParams.get("include_disabled") === "1";
     const models = listPublicModels(provider, includeDisabled);
+    const usage = queryAll<{ provider_id: string; model_id: string; requests: number; successes: number; failures: number; tokens: number }>(`SELECT provider_id,model_id,COUNT(*) requests,SUM(CASE WHEN status<400 THEN 1 ELSE 0 END) successes,SUM(CASE WHEN status>=400 THEN 1 ELSE 0 END) failures,SUM(COALESCE(prompt_tokens,0)+COALESCE(completion_tokens,0)) tokens FROM request_logs WHERE provider_id IS NOT NULL AND model_id IS NOT NULL GROUP BY provider_id,model_id`);
+    const usageByModel = new Map(usage.map((row) => [`${row.provider_id}/${row.model_id}`, row]));
     json(res, 200, {
       object: "list",
       count: models.length,
@@ -502,16 +562,33 @@ export async function handleAdmin(
         display_name: model.displayName,
         caps: model.caps,
         context_length: model.contextLength,
+        context_length_source: model.contextLengthSource,
+        enabled: model.enabled,
+        usage: usageByModel.get(model.fullId) ?? { requests: 0, successes: 0, failures: 0, tokens: 0 },
         parameter_size: model.parameterSize,
         quantization: model.quantization,
         family: model.family,
         size_bytes: model.sizeBytes,
         source: model.source,
         last_seen_at: model.lastSeenAt,
+        first_seen_at: model.firstSeenAt,
         provider_enabled: ctx.registry.get(model.providerId)?.enabled ?? false,
       })),
     });
     return true;
+  }
+
+  if (method === "PATCH" && path === "/admin/models/status") {
+    const body = await readJson(req, ADMIN_BODY_LIMIT);
+    const modelRef = typeof body.model === "string" ? body.model : "";
+    if (typeof body.enabled !== "boolean") throw new GatewayError({ message: "enabled must be boolean", status: 400, code: "invalid_request_error", param: "enabled" });
+    const slash = modelRef.indexOf("/");
+    if (slash < 1) throw new GatewayError({ message: "Use a qualified model id provider/model", status: 400, code: "invalid_request_error", param: "model" });
+    const providerId = modelRef.slice(0, slash), modelId = modelRef.slice(slash + 1).toLowerCase();
+    const exists = queryOne<{ model_id: string }>("SELECT model_id FROM models WHERE provider_id=? AND model_id=?", providerId, modelId);
+    if (!exists) throw new GatewayError({ message: "Model not found", status: 404, code: "model_not_found" });
+    execute("UPDATE models SET enabled=? WHERE provider_id=? AND model_id=?", body.enabled ? 1 : 0, providerId, modelId);
+    json(res, 200, { object: "model.status", model: modelRef, enabled: body.enabled }); return true;
   }
 
   if (method === "PATCH" && path === "/admin/models/context") {
@@ -596,25 +673,81 @@ export async function handleAdmin(
     return true;
   }
 
+  if (path === "/admin/mcp" && method === "GET") {
+    const setting = queryOne<{ value: string }>("SELECT value FROM gateway_settings WHERE key='mcp_enabled'");
+    const calls = queryOne<{ count: number; failed: number }>("SELECT COUNT(*) count,SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) failed FROM mcp_call_logs");
+    const tools = queryAll("SELECT tool_name,COUNT(*) calls,SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) failed,MAX(ts) last_call FROM mcp_call_logs GROUP BY tool_name ORDER BY calls DESC");
+    const sessions = snapshotMcpSessions();
+    json(res, 200, {
+      object: "mcp.status",
+      enabled: setting?.value !== "false",
+      calls: calls?.count ?? 0,
+      failed: calls?.failed ?? 0,
+      tools,
+      tools_total: TOOL_NAMES.length,
+      tool_names: TOOL_NAMES,
+      session_count: sessions.length,
+      sessions,
+    });
+    return true;
+  }
+  if (path === "/admin/mcp/sessions" && method === "GET") {
+    const sessions = snapshotMcpSessions();
+    json(res, 200, {
+      object: "mcp.sessions",
+      count: sessions.length,
+      tools_total: TOOL_NAMES.length,
+      tools: TOOL_NAMES,
+      sessions,
+    });
+    return true;
+  }
+  if (path === "/admin/mcp" && method === "POST") {
+    const body = await readJson(req, ADMIN_BODY_LIMIT);
+    if (typeof body.enabled !== "boolean") throw new GatewayError({ message: "enabled must be boolean", status: 400, code: "invalid_request_error", param: "enabled" });
+    execute(`INSERT INTO gateway_settings(key,value,updated_at) VALUES('mcp_enabled',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at`, String(body.enabled), new Date().toISOString());
+    json(res, 200, { object: "mcp.status", enabled: body.enabled }); return true;
+  }
+  if (path === "/admin/mcp/calls" && method === "POST") {
+    const body = await readJson(req, ADMIN_BODY_LIMIT);
+    const tool = typeof body.tool === "string" ? body.tool.slice(0,120) : "";
+    const status = body.status === "error" ? "error" : "success";
+    const duration = Number(body.duration_ms);
+    if (!tool || !Number.isInteger(duration) || duration < 0) throw new GatewayError({ message: "tool and non-negative duration_ms are required", status: 400, code: "invalid_request_error" });
+    execute("INSERT INTO mcp_call_logs(tool_name,status,duration_ms,ts) VALUES(?,?,?,?)", tool,status,duration,new Date().toISOString());
+    json(res, 201, { object: "mcp.call", tool, status }); return true;
+  }
+
   if (method === "GET" && path === "/admin/requests") {
     const limit = intParam(url.searchParams.get("limit"), 20);
     const provider = url.searchParams.get("provider") ?? undefined;
-    json(res, 200, { object: "list", data: recentRequests(limit, provider) });
+    const userId = url.searchParams.get("user_id") ?? undefined;
+    const statusParam = url.searchParams.get("status");
+    const status = statusParam === "success" || statusParam === "error" ? statusParam : undefined;
+    json(res, 200, { object: "list", data: recentRequests(limit, { providerId: provider, userId, status }) });
     return true;
   }
 
   if (method === "GET" && path === "/admin/sessions") {
     const limit = Math.min(Math.max(intParam(url.searchParams.get("limit"), 50), 1), 500);
     const openOnly = url.searchParams.get("open") === "1";
-    const data = queryAll<Record<string, unknown>>(
+    const userId = url.searchParams.get("user_id");
+    const search = url.searchParams.get("search")?.toLowerCase() ?? "";
+    const adminRows = queryAll<Record<string, unknown>>(
       `SELECT id, kind, remote_addr, user_agent, interval_ms, frames,
-              opened_at, last_sent_at, closed_at, meta
+              opened_at, last_sent_at, closed_at, meta, NULL AS user_id, 0 AS requests
        FROM admin_sessions
        ${openOnly ? "WHERE closed_at IS NULL" : ""}
-       ORDER BY opened_at DESC LIMIT ?`,
-      limit,
+       ORDER BY opened_at DESC LIMIT ?`, limit,
     );
-    json(res, 200, { object: "list", count: data.length, open_only: openOnly, data });
+    const inferenceRows = queryAll<Record<string, unknown>>(`SELECT s.id,'inference' kind,s.remote_addr,s.user_agent,NULL interval_ms,0 frames,s.created_at opened_at,s.updated_at last_sent_at,NULL closed_at,'{}' meta,
+      (SELECT l.user_id FROM request_logs l WHERE l.session_id=s.id AND l.user_id IS NOT NULL ORDER BY l.id DESC LIMIT 1) user_id,
+      (SELECT COUNT(*) FROM request_logs l WHERE l.session_id=s.id) requests
+      FROM sessions s ORDER BY s.updated_at DESC LIMIT ?`, limit);
+    let data = [...adminRows, ...inferenceRows].sort((a,b)=>String(b.opened_at).localeCompare(String(a.opened_at)));
+    if (userId) data = data.filter((row) => row.user_id === userId);
+    if (search) data = data.filter((row) => String(row.id).toLowerCase().includes(search) || String(row.user_id ?? "").toLowerCase().includes(search));
+    json(res, 200, { object: "list", count: data.length, open_only: openOnly, data: data.slice(0, limit) });
     return true;
   }
 

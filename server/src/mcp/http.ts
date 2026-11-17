@@ -42,12 +42,24 @@ const TOOL_TIMEOUT_MS = 120_000;
 
 type Transport = "http" | "sse";
 
+interface McpClient {
+  name: string;
+  version: string;
+  title: string | null;
+}
+
 interface McpSession {
   id: string;
   protocol: string;
   transport: Transport;
   initialized: boolean;
+  /** Created to answer a request that did not initialize first. */
+  implicit: boolean;
+  createdAt: number;
   lastSeen: number;
+  requests: number;
+  lastMethod: string | null;
+  client: McpClient | null;
   /** Legacy SSE reply channel; null for Streamable HTTP sessions. */
   stream: ServerResponse | null;
 }
@@ -58,13 +70,22 @@ function sweepSessions(): void {
   const cutoff = Date.now() - SESSION_TTL_MS;
   for (const [id, session] of sessions) {
     if (session.lastSeen >= cutoff) continue;
-    try {
-      session.stream?.end();
-    } catch {
-      // The peer is already gone; deleting the row is the only cleanup needed.
-    }
-    sessions.delete(id);
+    closeSession(session, "expired");
   }
+}
+
+/**
+ * One row per handshake. Client-supplied fields are truncated before they are
+ * stored, so a client cannot push an unbounded string into the admin response.
+ */
+function clientFrom(params: Record<string, unknown>): McpClient | null {
+  const info = isObject(params["clientInfo"]) ? params["clientInfo"] : null;
+  if (!info) return null;
+  const name = typeof info["name"] === "string" ? info["name"].slice(0, 120) : "";
+  const version = typeof info["version"] === "string" ? info["version"].slice(0, 60) : "";
+  const title = typeof info["title"] === "string" ? info["title"].slice(0, 160) : null;
+  if (name.length === 0 && version.length === 0) return null;
+  return { name: name || "unknown", version: version || "unknown", title };
 }
 
 function negotiate(requested: unknown): string {
@@ -73,17 +94,83 @@ function negotiate(requested: unknown): string {
     : MCP_LATEST_PROTOCOL;
 }
 
-function newSession(transport: Transport, protocol: string): McpSession {
+function newSession(
+  transport: Transport,
+  protocol: string,
+  client: McpClient | null = null,
+  implicit = false,
+): McpSession {
+  const now = Date.now();
   const session: McpSession = {
     id: randomUUID(),
     protocol,
     transport,
     initialized: false,
-    lastSeen: Date.now(),
+    implicit,
+    createdAt: now,
+    lastSeen: now,
+    requests: 0,
+    lastMethod: null,
+    client,
     stream: null,
   };
   sessions.set(session.id, session);
+  logEvent("info", "mcp.session.open", {
+    session: session.id,
+    transport,
+    protocol,
+    implicit,
+    client: client?.name ?? null,
+    client_version: client?.version ?? null,
+  });
   return session;
+}
+
+function closeSession(session: McpSession, reason: string): void {
+  if (!sessions.delete(session.id)) return;
+  try {
+    session.stream?.end();
+  } catch {
+    // The peer is already gone; deleting the row is the only cleanup needed.
+  }
+  logEvent("info", "mcp.session.close", {
+    session: session.id,
+    reason,
+    client: session.client?.name ?? null,
+    requests: session.requests,
+  });
+}
+
+export interface McpSessionView {
+  id: string;
+  protocol: string;
+  transport: Transport;
+  initialized: boolean;
+  implicit: boolean;
+  client: McpClient | null;
+  created_at: string;
+  last_seen: string;
+  requests: number;
+  last_method: string | null;
+}
+
+/** Live registry for GET /admin/mcp/sessions; expired rows are swept first. */
+export function snapshotMcpSessions(): McpSessionView[] {
+  sweepSessions();
+  return [...sessions.values()]
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((session) => ({
+      id: session.id,
+      protocol: session.protocol,
+      transport: session.transport,
+      initialized: session.initialized,
+      implicit: session.implicit,
+      client: session.client,
+      created_at: new Date(session.createdAt).toISOString(),
+      last_seen: new Date(session.lastSeen).toISOString(),
+      requests: session.requests,
+      last_method: session.lastMethod,
+    }));
 }
 
 function sessionHeaders(session: McpSession | null): Record<string, string> {
@@ -260,11 +347,19 @@ async function dispatch(
     return rpcError(id, -32600, "Invalid request: method must be a string");
   }
 
+  if (session) {
+    session.requests += 1;
+    session.lastMethod = method;
+    session.lastSeen = Date.now();
+  }
+
   if (method === "initialize") {
     const protocol = negotiate(params.protocolVersion);
     if (session) {
       session.protocol = protocol;
-      session.lastSeen = Date.now();
+      session.implicit = false;
+      const client = clientFrom(params);
+      if (client) session.client = client;
     }
     return {
       jsonrpc: "2.0",
@@ -280,7 +375,16 @@ async function dispatch(
   }
 
   if (method === "notifications/initialized") {
-    if (session) session.initialized = true;
+    if (session) {
+      session.initialized = true;
+      logEvent("info", "mcp.session.ready", {
+        session: session.id,
+        transport: session.transport,
+        protocol: session.protocol,
+        client: session.client?.name ?? null,
+        client_version: session.client?.version ?? null,
+      });
+    }
     return null;
   }
 
@@ -365,12 +469,14 @@ async function handlePostMcp(
   }
 
   let session = requestSession(req);
-  const initializing = messages.some((message) => isObject(message) && message.method === "initialize");
-  if (session === null && initializing) {
+  if (session === null) {
     const requested = messages
       .map((message) => (isObject(message) && isObject(message.params) ? message.params.protocolVersion : null))
       .find((value) => typeof value === "string");
-    session = newSession("http", negotiate(requested));
+    // Stateless-friendly: a client that skips initialize still gets a working
+    // session instead of a -32600, and the response carries Mcp-Session-Id so
+    // the next call can continue the same row.
+    session = newSession("http", negotiate(requested ?? headerProtocol(req)), null, true);
   }
 
   const responses: unknown[] = [];
@@ -378,16 +484,6 @@ async function handlePostMcp(
     if (!isObject(message)) {
       responses.push(rpcError(null, -32600, "Invalid request"));
       continue;
-    }
-    const method = typeof message.method === "string" ? message.method : "";
-    if (session === null && method !== "initialize") {
-      sendJsonRpc(
-        res,
-        400,
-        rpcError(message.id, -32600, "Mcp-Session-Id header is required; initialize first"),
-        sessionHeaders(null),
-      );
-      return;
     }
     const response = await dispatch(ctx, message, session);
     if (response !== null) responses.push(response);
@@ -404,10 +500,11 @@ async function handlePostMcp(
 
 function handleGetMcp(req: IncomingMessage, res: ServerResponse): void {
   sweepSessions();
-  const session = requestSession(req);
+  let session = requestSession(req);
   if (!session) {
-    sendJsonRpc(res, 400, rpcError(null, -32600, "Mcp-Session-Id header is required"), sessionHeaders(null));
-    return;
+    // A bare GET /mcp is a valid introspection stream request; give it a session
+    // instead of refusing it, and announce the id in the response header.
+    session = newSession("http", headerProtocol(req) ?? MCP_LATEST_PROTOCOL, null, true);
   }
   if (session.stream !== null && !session.stream.writableEnded) {
     sendJsonRpc(res, 409, rpcError(null, -32600, "An event stream is already open for this session"), sessionHeaders(session));
@@ -434,12 +531,7 @@ function handleDeleteMcp(req: IncomingMessage, res: ServerResponse): void {
     sendJsonRpc(res, 404, rpcError(null, -32600, "Unknown MCP session"), sessionHeaders(null));
     return;
   }
-  sessions.delete(session.id);
-  try {
-    session.stream?.end();
-  } catch {
-    // Already closed by the peer.
-  }
+  closeSession(session, "client delete");
   res.writeHead(204, sessionHeaders(session));
   res.end();
 }
@@ -459,7 +551,7 @@ function handleLegacySse(req: IncomingMessage, res: ServerResponse): void {
   res.on("close", () => {
     clearInterval(timer);
     session.stream = null;
-    sessions.delete(session.id);
+    closeSession(session, "sse stream closed");
   });
 }
 

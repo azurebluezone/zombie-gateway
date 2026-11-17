@@ -40,6 +40,9 @@ export interface PublicModel {
   sizeBytes: number | null;
   source: string;
   lastSeenAt: string;
+  firstSeenAt: string;
+  enabled: boolean;
+  contextLengthSource: string;
 }
 
 export interface ResolvedModel {
@@ -139,8 +142,8 @@ export async function syncProvider(config: ProviderConfig): Promise<SyncReport> 
     const discovered = (await driver.discover(config, {
       declaredCaps: config.caps,
       declaredModels: config.models,
-    })).map((model) => model.contextLength === null && config.defaultContextLength !== null
-      ? { ...model, contextLength: config.defaultContextLength, contextLengthSource: "default" as const }
+    })).map((model) => model.contextLength === null
+      ? { ...model, contextLength: config.defaultContextLength ?? 8192, contextLengthSource: "default" as const }
       : model);
 
     const capabilities = [...new Set(discovered.flatMap((model) => model.caps))];
@@ -215,6 +218,9 @@ interface ModelRow {
   size_bytes: number | null;
   source: string;
   last_seen_at: string;
+  first_seen_at: string;
+  enabled: number;
+  context_length_source: string;
 }
 
 function parseCaps(raw: string): string[] {
@@ -227,7 +233,7 @@ function parseCaps(raw: string): string[] {
 }
 
 export function listPublicModels(providerId?: string, includeDisabled = false): PublicModel[] {
-  const gate = includeDisabled ? "" : " AND p.enabled = 1";
+  const gate = includeDisabled ? "" : " AND p.enabled = 1 AND m.enabled = 1";
   const rows = providerId
     ? queryAll<ModelRow>(
         `SELECT m.* FROM models m JOIN providers p ON p.id = m.provider_id
@@ -253,6 +259,9 @@ export function listPublicModels(providerId?: string, includeDisabled = false): 
     sizeBytes: row.size_bytes,
     source: row.source,
     lastSeenAt: row.last_seen_at,
+    firstSeenAt: row.first_seen_at,
+    enabled: row.enabled !== 0,
+    contextLengthSource: row.context_length_source,
   }));
 }
 
@@ -269,14 +278,14 @@ export function resolveModel(reference: string): ResolvedModel {
 
   const exact = queryOne<ModelRow>(
     `SELECT m.* FROM models m JOIN providers p ON p.id = m.provider_id
-     WHERE m.active = 1 AND p.enabled = 1 AND m.provider_id || '/' || m.model_id = ?`,
+     WHERE m.active = 1 AND m.enabled = 1 AND p.enabled = 1 AND m.provider_id || '/' || m.model_id = ?`,
     normalized.toLowerCase(),
   );
   if (exact) return toResolved(exact);
 
   const candidates = queryAll<ModelRow>(
     `SELECT m.* FROM models m JOIN providers p ON p.id = m.provider_id
-     WHERE m.active = 1 AND p.enabled = 1 AND m.model_id = ?`,
+     WHERE m.active = 1 AND m.enabled = 1 AND p.enabled = 1 AND m.model_id = ?`,
     normalized.toLowerCase(),
   );
   if (candidates.length === 1) {

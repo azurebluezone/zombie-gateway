@@ -192,23 +192,24 @@ export interface RequestRow {
   completion_tokens: number | null;
   token_source: string;
   session_id: string | null;
+  user_id: string | null;
+  route: string;
 }
 
-export function recentRequests(limit: number, providerId?: string): RequestRow[] {
+export function recentRequests(limit: number, filters: { providerId?: string; userId?: string; status?: "success" | "error" } = {}): RequestRow[] {
   const capped = Math.min(Math.max(limit, 1), 200);
-  if (providerId) {
-    return queryAll<RequestRow>(
-      `SELECT request_id, ts, provider_id, model_id, stream, status, error_code,
-              duration_ms, ttfb_ms, chunk_count, prompt_tokens, completion_tokens, token_source, session_id
-       FROM request_logs WHERE provider_id = ? ORDER BY id DESC LIMIT ?`,
-      providerId,
-      capped,
-    );
-  }
+  const conditions: string[] = [];
+  const values: (string | number)[] = [];
+  if (filters.providerId) { conditions.push("provider_id = ?"); values.push(filters.providerId); }
+  if (filters.userId) { conditions.push("user_id = ?"); values.push(filters.userId); }
+  if (filters.status === "success") conditions.push("status < 400");
+  if (filters.status === "error") conditions.push("status >= 400");
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   return queryAll<RequestRow>(
     `SELECT request_id, ts, provider_id, model_id, stream, status, error_code,
-            duration_ms, ttfb_ms, chunk_count, prompt_tokens, completion_tokens, token_source, session_id
-     FROM request_logs ORDER BY id DESC LIMIT ?`,
+            duration_ms, ttfb_ms, chunk_count, prompt_tokens, completion_tokens, token_source, session_id, user_id, route
+     FROM request_logs ${where} ORDER BY id DESC LIMIT ?`,
+    ...values,
     capped,
   );
 }

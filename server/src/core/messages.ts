@@ -39,6 +39,7 @@ import { toAnthropicError, toAnthropicMessage, translateRequest } from "../adapt
 import type { Json } from "../adapters/openai-chat.ts";
 import { readSse } from "../adapters/sse.ts";
 import { injectPolicy, policyHeader, type PolicyInjection } from "./policy.ts";
+import { injectIdentity } from "../identity.ts";
 
 const MAX_NON_STREAM_BYTES = 64 * 1024 * 1024;
 
@@ -151,6 +152,7 @@ export async function handleMessages(
       completionTokens,
       tokenSource,
       userId: (req as IncomingMessage & { gatewayUserId?: string }).gatewayUserId ?? null,
+      route: (req.url ?? "").split("?")[0] || "/v1/chat/completions",
       detail,
     });
   };
@@ -194,7 +196,9 @@ export async function handleMessages(
     // client's own transcript is the only way the text could double; the marker
     // check inside injectPolicy covers that case.
     const injection = injectPolicy(messages, ctx.policy, headerValue(req, "x-policy"));
-    const outgoing = injection.messages;
+    const outgoing = ctx.config.identityPrompt
+      ? injectIdentity(injection.messages, ctx.identity).messages
+      : injection.messages;
     policyRef = injection;
     if (injection.state === "applied") {
       logEvent("info", "policy.injected", {
@@ -537,7 +541,9 @@ export async function handleCountTokens(
   // Count what the gateway would actually send, policy included; a budget that
   // ignores the behaviour layer would promise room the real call does not have.
   const injection = injectPolicy(messages, ctx.policy, headerValue(req, "x-policy"));
-  const outgoing = injection.messages;
+  const outgoing = ctx.config.identityPrompt
+    ? injectIdentity(injection.messages, ctx.identity).messages
+    : injection.messages;
 
   const plan = planContext(
     resolved,

@@ -30,6 +30,7 @@ agents, containers).
 | `gateway_model_stats` | `GET /admin/model-stats` | Per-model calls, errors, avg/max latency, tokens, last request |
 | `gateway_logs` | `GET /admin/logs` | Tail one of the four files in `server/logs/`, with its absolute path |
 | `gateway_requests` | `GET /admin/requests` | Recent request rows with status, duration, tokens |
+| `gateway_mcp_sessions` | `GET /admin/mcp/sessions` | Connected MCP clients plus the full tool list and its count |
 | `gateway_chat` | `POST /v1/chat/completions` | One non-streaming answer with model, usage and latency |
 
 Read-only except `gateway_chat`, which spends local CPU. Keep `max_tokens` small
@@ -55,11 +56,28 @@ JSON-RPC error.
 
 Session and CORS headers:
 
-- `Mcp-Session-Id` is issued by `initialize` and required on later `/mcp` calls.
+- `Mcp-Session-Id` is issued by `initialize` and by any stateless request that
+  arrives without one, so a client that skips the handshake still gets a working
+  session instead of `-32600 Mcp-Session-Id header is required`.
 - `MCP-Protocol-Version` is returned on every MCP response.
 - `access-control-allow-origin: *` plus `access-control-expose-headers:
   mcp-session-id, mcp-protocol-version` make the transport usable from a browser
   and from a non-browser client without a second configuration path.
+
+## Connected clients
+
+Every handshake is a row in an in-process registry:
+
+- `GET /admin/mcp` — status, call totals, `tools_total`, `tool_names`,
+  `session_count` and `sessions`.
+- `GET /admin/mcp/sessions` — `{ count, tools_total, tools, sessions }`, where a
+  session carries `id`, `client.name`, `client.version`, `protocol`, `transport`,
+  `initialized`, `implicit`, `requests`, `last_method`, `created_at`, `last_seen`.
+- `gateway_mcp_sessions` exposes the same rows to an agent over MCP.
+
+Admin auth applies to these routes like every other `/admin` path; the MCP tools
+call them over loopback with `GATEWAY_ADMIN_TOKEN`, so an authenticated gateway
+does not need a second credential for tool execution.
 
 Minimal session with curl:
 
@@ -100,7 +118,7 @@ node server/scripts/mcp-http-client.mjs \
 ```
 
 It runs `initialize` → `notifications/initialized` → `tools/list` → optional
-`tools/call`, prints `tools=7` and `tool=<name> status=<status>`, and sends the
+`tools/call`, prints `tools=8` and `tool=<name> status=<status>`, and sends the
 Streamable HTTP `DELETE` so the session does not linger.
 
 ## Configuration
@@ -155,7 +173,7 @@ printf '%s\n' \
 ```
 
 Expected: `initialize` echoes the protocol version and `serverInfo.name` is
-`zombie-gateway`, `tools/list` returns seven names, and `gateway_health` returns
+`zombie-gateway`, `tools/list` returns eight names, and `gateway_health` returns
 the same JSON as `curl /health`. Diagnostics go to stderr only; stdout is the
 protocol stream.
 
@@ -170,7 +188,7 @@ node server/scripts/mcp-http-client.mjs \
   --url http://127.0.0.1:5010/sse --call gateway_health
 ```
 
-Expected in each case: `transport=…`, `tools=7`,
+Expected in each case: `transport=…`, `tools=8`,
 `tool=gateway_health status=ok`, then `OK`.
 
 ## Limits

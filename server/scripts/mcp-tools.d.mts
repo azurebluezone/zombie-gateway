@@ -23,3 +23,4 @@ export declare function toolResult(
   isError?: boolean,
 ): { content: Array<{ type: "text"; text: string }>; isError: boolean };
 export declare function createTools(http: McpHttp): McpTool[];
+export declare const TOOL_NAMES: string[];

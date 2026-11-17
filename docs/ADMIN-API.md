@@ -379,3 +379,15 @@ x-system-version: 0.1.0
 x-system-owner: Sahon Srabon
 x-powered-by: CompatibleProviders-by-SahonSrabon
 ```
+
+Headers are attribution for HTTP clients; a model only reads its prompt, so the
+same identity is also sent as text. `GATEWAY_IDENTITY_PROMPT=0` disables it.
+
+- The block starts with the marker `[system-identity]` and carries name,
+  version, owner, organization, location, protocol and tagline.
+- It is prepended to the wire copy of `/v1/chat/completions`, `/v1/messages` and
+  `/v1/messages/count_tokens` **after** the policy layer, so both appear.
+- Session history keeps the client's original messages: the block is never
+  stored, and a prompt that already contains the marker is left untouched
+  instead of stacking a second copy.
+- Injection is logged as `identity.injected` with the request id and route.
